@@ -1,0 +1,895 @@
+<anonymous_script>:0
+
+
+[Error: SQLITE_CORRUPT: database disk image is malformed
+Emitted 'error' event on Statement instance at:
+] {
+  errno: 11,
+  code: 'SQLITE_CORRUPT'
+}
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
+/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296
+const nowLima  = () => DateTime.now().setZone(TZ);
+                                              ^
+
+ReferenceError: TZ is not defined
+    at nowLima (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:296:47)
+    at cleanupAsistPhotos (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1417:15)
+    at Object.<anonymous> (/home/u286313822/domains/shop.geodreamspro.com/nodejs/routes/asistencia.js:1451:1)
+    at Module._compile (node:internal/modules/cjs/loader:1688:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1820:10)
+    at Module.load (node:internal/modules/cjs/loader:1423:32)
+    at Module._load (node:internal/modules/cjs/loader:1246:12)
+    at TracingChannel.traceSync (node:diagnostics_channel:322:14)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)
+    at Module.require (node:internal/modules/cjs/loader:1445:12)
+
+Node.js v22.18.0
