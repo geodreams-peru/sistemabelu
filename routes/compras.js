@@ -2,6 +2,8 @@ const express  = require('express');
 const sqlite3  = require('sqlite3').verbose();
 const path     = require('path');
 const fs       = require('fs');
+const XLSX     = require('xlsx');
+const multer   = require('multer');
 
 const router = express.Router();
 
@@ -69,6 +71,110 @@ function authAdmin(req, res, next) {
 const run  = (sql, p=[]) => new Promise((res,rej) => db.run(sql, p, function(e){ e ? rej(e) : res(this); }));
 const all  = (sql, p=[]) => new Promise((res,rej) => db.all(sql, p, (e,r) => e ? rej(e) : res(r)));
 const get  = (sql, p=[]) => new Promise((res,rej) => db.get(sql,  p, (e,r) => e ? rej(e) : res(r)));
+
+const uploadImport = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = (file.originalname.split('.').pop() || '').toLowerCase();
+    cb(null, ['xlsx', 'xls', 'csv'].includes(ext));
+  }
+});
+
+const COMPRAS_COLS = [
+  'fecha', 'hora', 'proveedor', 'producto', 'pago',
+  'peso', 'unidades', 'precio_unit', 'precio_final', 'nota', 'pagado'
+];
+
+const COMPRAS_EJEMPLO = [
+  '15/06/2025', '10:30:00', 'EJEMPLO PROVEEDOR', 'Chancho pierna', 'Efectivo',
+  5.5, 0, 12.5, 68.75, 'Ejemplo — eliminar esta fila antes de importar', 0
+];
+
+function isoToDDMMAAAA(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || '';
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function parseFechaInput(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+
+  if (typeof raw === 'number') {
+    const d = XLSX.SSF.parse_date_code(raw);
+    if (d?.y) {
+      return `${d.y}-${String(d.m).padStart(2, '0')}-${String(d.d).padStart(2, '0')}`;
+    }
+  }
+
+  const s = String(raw).trim();
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (m) {
+    const dd = m[1].padStart(2, '0');
+    const mm = m[2].padStart(2, '0');
+    const yy = m[3];
+    const y = yy.length === 2 ? (parseInt(yy, 10) >= 50 ? `19${yy}` : `20${yy}`) : yy;
+    if (+mm < 1 || +mm > 12 || +dd < 1 || +dd > 31) return null;
+    return `${y}-${mm}-${dd}`;
+  }
+  return null;
+}
+
+function mesRango(mes, anio) {
+  const m = String(mes).padStart(2, '0');
+  const ul = new Date(+anio, +mes, 0).getDate();
+  return { desde: `${anio}-${m}-01`, hasta: `${anio}-${m}-${String(ul).padStart(2, '0')}` };
+}
+
+function toFloat(s) {
+  if (s === null || s === undefined || s === '') return 0;
+  return parseFloat(String(s).replace(',', '.')) || 0;
+}
+
+function sendXlsx(res, wb, filename) {
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buf);
+}
+
+function parseImportRows(buffer, originalname) {
+  const ext = (originalname.split('.').pop() || '').toLowerCase();
+  let rows;
+  if (ext === 'csv') {
+    const text = buffer.toString('utf8');
+    rows = text.split('\n').map(line => {
+      const cols = [];
+      let cur = '', inQuote = false;
+      for (const ch of line) {
+        if (ch === '"') { inQuote = !inQuote; }
+        else if (ch === ',' && !inQuote) { cols.push(cur); cur = ''; }
+        else cur += ch;
+      }
+      cols.push(cur);
+      return cols;
+    }).filter(r => r.some(c => String(c).trim()));
+  } else {
+    const wb = XLSX.read(buffer, { type: 'buffer' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+  }
+  return rows.filter(r => r.some(c => String(c ?? '').trim()));
+}
+
+function esFilaEjemplo(row) {
+  const prov = String(row[2] || '').trim().toUpperCase();
+  const nota = String(row[9] || '').toLowerCase();
+  return prov === 'EJEMPLO PROVEEDOR' || nota.includes('eliminar esta fila');
+}
+
+function esEncabezado(row) {
+  const first = String(row[0] || '').trim().toLowerCase();
+  return first === 'fecha' || first === 'id';
+}
 
 // ─── IMPORTAR CSV (una sola vez) ─────────────────────────────────
 const CSV_PATH = path.join(__dirname, '../data/compras_import.csv');
@@ -271,6 +377,116 @@ router.get('/productos', auth, async (req, res) => {
     const rows = await all(`SELECT DISTINCT producto as nombre FROM compras ORDER BY producto`);
     res.json(rows.map(r => r.nombre));
   } catch(e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/compras/export?mes=&anio=  → Excel del mes
+router.get('/export', auth, async (req, res) => {
+  try {
+    const { mes, anio } = req.query;
+    if (!mes || !anio) return res.status(400).json({ error: 'mes y anio requeridos' });
+
+    const { desde, hasta } = mesRango(mes, anio);
+    const rows = await all(
+      `SELECT fecha, hora, proveedor, producto, pago, peso, unidades, precio_unit, precio_final, nota, pagado
+       FROM compras WHERE fecha >= ? AND fecha <= ?
+       ORDER BY fecha ASC, hora ASC, created_at ASC`,
+      [desde, hasta]
+    );
+
+    const data = [
+      COMPRAS_COLS,
+      ...rows.map(r => COMPRAS_COLS.map(c => {
+        if (c === 'fecha') return isoToDDMMAAAA(r[c]);
+        return r[c] ?? '';
+      }))
+    ];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(data), 'Compras');
+    const mesPad = String(mes).padStart(2, '0');
+    sendXlsx(res, wb, `compras_${anio}-${mesPad}.xlsx`);
+  } catch (e) {
+    console.error('Export compras:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// GET /api/compras/plantilla  → archivo modelo para importar
+router.get('/plantilla', auth, async (req, res) => {
+  try {
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([COMPRAS_COLS, COMPRAS_EJEMPLO]), 'Compras');
+    sendXlsx(res, wb, 'modelo_importacion_compras.xlsx');
+  } catch (e) {
+    console.error('Plantilla compras:', e.message);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// POST /api/compras/import  → importar desde Excel/CSV
+router.post('/import', auth, uploadImport.single('archivo'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Archivo requerido (.xlsx, .xls o .csv)' });
+
+    const rows = parseImportRows(req.file.buffer, req.file.originalname);
+    let insertados = 0, omitidos = 0, errores = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      if (esEncabezado(row) || esFilaEjemplo(row)) { omitidos++; continue; }
+
+      const [fecha, hora, proveedor, producto, pago, peso, unidades, precioUnit, precioFinal, nota, pagado] = row;
+      const fechaISO = parseFechaInput(fecha);
+      const provStr  = String(proveedor || '').trim();
+      const prodStr  = String(producto || '').trim();
+
+      if (!fechaISO) {
+        errores.push(`Fila ${i + 1}: fecha inválida (usar dd/mm/aaaa)`);
+        omitidos++;
+        continue;
+      }
+      if (!provStr || !prodStr) {
+        errores.push(`Fila ${i + 1}: proveedor y producto son requeridos`);
+        omitidos++;
+        continue;
+      }
+
+      const pf = toFloat(precioFinal);
+      if (pf <= 0) {
+        errores.push(`Fila ${i + 1}: precio_final debe ser mayor a 0`);
+        omitidos++;
+        continue;
+      }
+
+      const dup = await get(
+        `SELECT 1 FROM compras WHERE fecha=? AND proveedor=? AND producto=? AND ABS(precio_final-?)<0.01`,
+        [fechaISO, provStr, prodStr, pf]
+      );
+      if (dup) { omitidos++; continue; }
+
+      const id = `${Date.now()}${insertados}`;
+      const horaStr = String(hora || '').trim() || new Date().toTimeString().slice(0, 8);
+      const pagadoVal = ['1', 'si', 'sí', 'true', 'pagado'].includes(String(pagado || '').trim().toLowerCase()) ? 1 : 0;
+
+      await run(
+        `INSERT INTO compras (id,fecha,hora,proveedor,producto,pago,peso,unidades,precio_unit,precio_final,nota,pagado)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id, fechaISO, horaStr, provStr, prodStr,
+          String(pago || 'Efectivo').trim() || 'Efectivo',
+          toFloat(peso), toFloat(unidades), toFloat(precioUnit), pf,
+          String(nota || '').trim(), pagadoVal
+        ]
+      );
+      db.run(`INSERT OR IGNORE INTO proveedores (nombre) VALUES (?)`, [provStr]);
+      insertados++;
+    }
+
+    console.log(`  ✓ compras import: ${insertados} insertados, ${omitidos} omitidos`);
+    res.json({ ok: true, insertados, omitidos, errores: errores.slice(0, 10) });
+  } catch (e) {
+    console.error('Import compras:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // GET /api/compras/resumen?desde=&hasta=  (agrupado por proveedor y producto)

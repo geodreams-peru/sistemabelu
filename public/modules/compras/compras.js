@@ -475,6 +475,63 @@
     } catch(e) { document.getElementById('tablaResumen').innerHTML = '<p class="text-center text-muted" style="padding:30px">Error al cargar.</p>'; }
   };
 
+  // ── EXPORT / IMPORT ──────────────────────────────────────────────
+  async function descargarArchivo(url, filename) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Error al descargar');
+    }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  window.comprasExportar = async function () {
+    const mes  = document.getElementById('cMes')?.value;
+    const anio = document.getElementById('cAnio')?.value;
+    if (!mes || !anio) return alert('Seleccioná mes y año.');
+    try {
+      await descargarArchivo(`${API}/export?mes=${mes}&anio=${anio}`, `compras_${anio}-${mes}.xlsx`);
+    } catch (e) { alert(e.message); }
+  };
+
+  window.comprasDescargarModelo = async function () {
+    try {
+      await descargarArchivo(`${API}/plantilla`, 'modelo_importacion_compras.xlsx');
+    } catch (e) { alert(e.message); }
+  };
+
+  window.comprasImportar = async function (input) {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    const btn = document.querySelector('[onclick*="cImportFile"]');
+    if (btn) { btn.disabled = true; btn.textContent = 'Importando...'; }
+
+    try {
+      const fd = new FormData();
+      fd.append('archivo', file);
+      const res = await fetch(`${API}/import`, { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) return alert(data.error || 'Error al importar');
+
+      let msg = `Importación completada.\n✓ ${data.insertados} registros insertados\n○ ${data.omitidos} filas omitidas`;
+      if (data.errores?.length) msg += `\n\nAdvertencias:\n${data.errores.join('\n')}`;
+      alert(msg);
+      comprasCargar();
+      comprasCargarDashboard();
+    } catch (e) {
+      alert('Error de red al importar');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '📤 Importar'; }
+    }
+  };
+
   // ── UTIL ─────────────────────────────────────────────────────────
   function esc(s) {
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');

@@ -1,6 +1,7 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path    = require('path');
+const XLSX    = require('xlsx');
 const router  = express.Router();
 
 // ── Base de datos propia del módulo ─────────────────────────────
@@ -32,6 +33,63 @@ const asisDb = new sqlite3.Database(path.join(__dirname, '..', 'data', 'asistenc
 asisDb.on('error', err => console.error('Contabilidad asistencia.db aux:', err.message));
 function allExt(extDb, sql, p = []) {
   return new Promise((res, rej) => extDb.all(sql, p, (e, r) => e ? rej(e) : res(r || [])));
+}
+
+function mesRangoConta(mes, anio) {
+  const m = String(mes).padStart(2, '0');
+  const ul = new Date(+anio, +mes, 0).getDate();
+  return {
+    mesNum: +mes,
+    anioNum: +anio,
+    desde: `${anio}-${m}-01`,
+    hasta: `${anio}-${m}-${String(ul).padStart(2, '0')}`
+  };
+}
+
+function sendXlsx(res, wb, filename) {
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(buf);
+}
+
+async function calcGastosMes(mes, anio) {
+  const { mesNum, anioNum, desde, hasta } = mesRangoConta(mes, anio);
+  const items = await all('SELECT * FROM gastos_items ORDER BY orden');
+  const valores = await all('SELECT * FROM gastos_mensuales WHERE mes = ? AND anio = ?', [mesNum, anioNum]);
+  const valMap = {};
+  valores.forEach(v => { valMap[v.item_id] = v.monto; });
+
+  let comprasMap = {};
+  try {
+    const comprasRows = await allExt(comprasDb,
+      `SELECT proveedor as nombre, SUM(precio_final) as total FROM compras WHERE fecha >= ? AND fecha <= ? GROUP BY proveedor`,
+      [desde, hasta]);
+    comprasRows.forEach(c => { comprasMap[c.nombre.toUpperCase().trim()] = +c.total || 0; });
+  } catch (_) { /* compras DB no disponible */ }
+
+  const provAsignados = new Set();
+  items.filter(i => i.origen === 'compras').forEach(i => {
+    (i.origen_param || '').split(',').forEach(p => provAsignados.add(p.trim().toUpperCase()));
+  });
+
+  return items.map(item => {
+    let monto;
+    if (valMap[item.id] !== undefined) {
+      monto = valMap[item.id];
+    } else if (item.origen === 'compras') {
+      const provs = (item.origen_param || '').split(',').map(p => p.trim().toUpperCase());
+      monto = provs.reduce((s, p) => s + (comprasMap[p] || 0), 0);
+    } else if (item.origen === 'compras_otros') {
+      monto = 0;
+      Object.entries(comprasMap).forEach(([prov, val]) => {
+        if (!provAsignados.has(prov)) monto += val;
+      });
+    } else {
+      monto = item.valor_default || 0;
+    }
+    return { ...item, monto: +monto || 0 };
+  });
 }
 
 function init() {
@@ -387,6 +445,43 @@ router.post('/gastos-mensual', async (req, res) => {
     }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// GET /api/contabilidad/export?mes=&anio=  → Excel del mes (Ventas + Gastos)
+router.get('/export', async (req, res) => {
+  try {
+    const { mes, anio } = req.query;
+    if (!mes || !anio) return res.status(400).json({ error: 'mes y anio requeridos' });
+
+    const { desde, hasta } = mesRangoConta(mes, anio);
+
+    const ventas = await all(
+      `SELECT fecha, hora, efectivo, tarjeta, mixto_efectivo, mixto_tarjeta, total, notas
+       FROM ventas WHERE fecha >= ? AND fecha <= ? ORDER BY fecha ASC, hora ASC`,
+      [desde, hasta]
+    );
+
+    const gastosItems = await calcGastosMes(mes, anio);
+
+    const ventasCols = ['fecha', 'hora', 'efectivo', 'tarjeta', 'mixto_efectivo', 'mixto_tarjeta', 'total', 'notas'];
+    const gastosCols = ['orden', 'nombre', 'origen', 'origen_param', 'monto'];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ventasCols,
+      ...ventas.map(v => ventasCols.map(c => v[c] ?? ''))
+    ]), 'Ventas');
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      gastosCols,
+      ...gastosItems.map(g => [g.orden, g.nombre, g.origen, g.origen_param || '', g.monto])
+    ]), 'Gastos');
+
+    const mesPad = String(mes).padStart(2, '0');
+    sendXlsx(res, wb, `contabilidad_${anio}-${mesPad}.xlsx`);
+  } catch (e) {
+    console.error('Export contabilidad:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;

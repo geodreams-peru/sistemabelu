@@ -474,6 +474,36 @@ function contaFiltroBalanceMensual() {
   return `?desde=${desde}&hasta=${hasta}`;
 }
 
+// ── Exportar Excel ───────────────────────────────────────────────
+async function contaDescargarArchivo(url, filename) {
+  const res = await fetch(url);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Error al descargar');
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function contaExportar() {
+  const mes  = document.getElementById('dashMes')?.value;
+  const anio = document.getElementById('dashAnio')?.value;
+  if (!mes || !anio) return alert('Seleccioná mes y año.');
+  const btn = document.querySelector('#conta-dashboard .filter-bar button[onclick*="contaExportar"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Exportando...'; }
+  try {
+    await contaDescargarArchivo(`${API}/export?mes=${mes}&anio=${anio}`, `contabilidad_${anio}-${mes}.xlsx`);
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Exportar'; }
+  }
+}
+
 // ── Helper: params desde select de mes + año ────────────────────
 function contaMesSelectParams(mesId, anioId) {
   const mes  = document.getElementById(mesId)?.value;

@@ -90,6 +90,10 @@
       <option value="Yape">Yape</option>
     </select>
     <button class="btn btn-primary btn-sm" onclick="comprasNuevo()">+ Nueva Compra</button>
+    <button class="btn btn-secondary btn-sm" onclick="comprasExportar()" title="Exportar mes a Excel">📥 Exportar</button>
+    <button class="btn btn-secondary btn-sm" onclick="comprasDescargarModelo()" title="Descargar plantilla de importación">📋 Modelo</button>
+    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('cImportFile').click()" title="Importar desde Excel/CSV">📤 Importar</button>
+    <input type="file" id="cImportFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="comprasImportar(this)">
   </div>
 
   <div class="form-card" style="padding:12px 16px;margin-bottom:8px;display:flex;gap:20px;align-items:center">
