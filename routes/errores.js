@@ -31,7 +31,20 @@ db.serialize(() => {
   db.run(`ALTER TABLE errores ADD COLUMN hora TEXT DEFAULT '12:12:12'`, () => {});
   db.run(`ALTER TABLE errores ADD COLUMN empleado_id INTEGER DEFAULT NULL`, () => {});
   db.run(`ALTER TABLE errores ADD COLUMN notificado_salida INTEGER DEFAULT 0`, () => {});
+  db.run(`ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0`, () => {});
+  db.run(`CREATE TABLE IF NOT EXISTS error_vistos (
+    error_id INTEGER NOT NULL,
+    empleado_id INTEGER NOT NULL,
+    visto_at TEXT DEFAULT (datetime('now','localtime')),
+    PRIMARY KEY (error_id, empleado_id)
+  )`);
 });
+
+const NOMBRE_TODOS = 'Todos los embajadores';
+
+function esParaTodos(empleadoId) {
+  return String(empleadoId || '').toLowerCase() === 'todos';
+}
 
 // ─── MIDDLEWARES ─────────────────────────────────────────────────
 function auth(req, res, next) {
@@ -115,14 +128,26 @@ router.post('/', auth, async (req, res) => {
     const { fecha, empleado_id, seccion='', descripcion, solucion='' } = req.body;
     if (!fecha || !descripcion)
       return res.status(400).json({ error: 'Campos requeridos: fecha, embajador, descripcion' });
+    if (!empleado_id)
+      return res.status(400).json({ error: 'Embajador requerido' });
 
-    const embajador = await resolverEmbajador(empleado_id);
     const hora = new Date().toTimeString().slice(0, 8);
-    const r = await run(
-      `INSERT INTO errores (fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, notificado_salida)
-       VALUES (?,?,?,?,?,?,?,0)`,
-      [fecha, hora, embajador.id, embajador.nombre, String(seccion).trim(), descripcion.trim(), solucion.trim()]
-    );
+    let r;
+
+    if (esParaTodos(empleado_id)) {
+      r = await run(
+        `INSERT INTO errores (fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, notificado_salida, para_todos)
+         VALUES (?,?,NULL,?,?,?,?,0,1)`,
+        [fecha, hora, NOMBRE_TODOS, String(seccion).trim(), descripcion.trim(), solucion.trim()]
+      );
+    } else {
+      const embajador = await resolverEmbajador(empleado_id);
+      r = await run(
+        `INSERT INTO errores (fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, notificado_salida, para_todos)
+         VALUES (?,?,?,?,?,?,?,0,0)`,
+        [fecha, hora, embajador.id, embajador.nombre, String(seccion).trim(), descripcion.trim(), solucion.trim()]
+      );
+    }
     res.json({ ok: true, id: r.lastID });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
@@ -131,21 +156,42 @@ router.post('/', auth, async (req, res) => {
 router.put('/:id', auth, async (req, res) => {
   try {
     const { fecha, empleado_id, seccion, descripcion, solucion, resuelto } = req.body;
-    const embajador = await resolverEmbajador(empleado_id);
-    await run(
-      `UPDATE errores SET fecha=?, empleado_id=?, nombre=?, seccion=?, descripcion=?, solucion=?, resuelto=?
-       WHERE id=?`,
-      [
-        fecha,
-        embajador.id,
-        embajador.nombre,
-        seccion?.trim() || '',
-        descripcion.trim(),
-        solucion?.trim() || '',
-        resuelto ? 1 : 0,
-        req.params.id
-      ]
-    );
+    if (!fecha || !descripcion)
+      return res.status(400).json({ error: 'Campos requeridos: fecha, descripcion' });
+    if (!empleado_id)
+      return res.status(400).json({ error: 'Embajador requerido' });
+
+    if (esParaTodos(empleado_id)) {
+      await run(
+        `UPDATE errores SET fecha=?, empleado_id=NULL, nombre=?, seccion=?, descripcion=?, solucion=?, resuelto=?, para_todos=1
+         WHERE id=?`,
+        [
+          fecha,
+          NOMBRE_TODOS,
+          seccion?.trim() || '',
+          descripcion.trim(),
+          solucion?.trim() || '',
+          resuelto ? 1 : 0,
+          req.params.id
+        ]
+      );
+    } else {
+      const embajador = await resolverEmbajador(empleado_id);
+      await run(
+        `UPDATE errores SET fecha=?, empleado_id=?, nombre=?, seccion=?, descripcion=?, solucion=?, resuelto=?, para_todos=0
+         WHERE id=?`,
+        [
+          fecha,
+          embajador.id,
+          embajador.nombre,
+          seccion?.trim() || '',
+          descripcion.trim(),
+          solucion?.trim() || '',
+          resuelto ? 1 : 0,
+          req.params.id
+        ]
+      );
+    }
     res.json({ ok: true });
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
@@ -163,6 +209,7 @@ router.patch('/:id/resolver', auth, async (req, res) => {
 // DELETE /api/errores/:id
 router.delete('/:id', auth, async (req, res) => {
   try {
+    await run('DELETE FROM error_vistos WHERE error_id=?', [req.params.id]);
     await run('DELETE FROM errores WHERE id=?', [req.params.id]);
     res.json({ ok: true });
   } catch(e) { res.status(500).json({ error: e.message }); }

@@ -113,9 +113,16 @@ async function getErroresPendientesSalida(empleadoId, fecha) {
   return erroresAll(
     `SELECT id, descripcion, solucion, hora, seccion
      FROM errores
-     WHERE empleado_id = ? AND fecha = ? AND notificado_salida = 0
+     WHERE fecha = ?
+       AND (
+         (empleado_id = ? AND COALESCE(para_todos, 0) = 0 AND notificado_salida = 0)
+         OR (
+           COALESCE(para_todos, 0) = 1
+           AND id NOT IN (SELECT error_id FROM error_vistos WHERE empleado_id = ?)
+         )
+       )
      ORDER BY hora ASC, id ASC`,
-    [empleadoId, fecha]
+    [fecha, empleadoId, empleadoId]
   );
 }
 
@@ -973,17 +980,36 @@ router.post('/errores-vistos', async (req, res) => {
 
     const hoy = hoyISO();
     const placeholders = ids.map(() => '?').join(',');
-    const validos = await erroresAll(
-      `SELECT id FROM errores
-       WHERE id IN (${placeholders}) AND empleado_id = ? AND fecha = ? AND notificado_salida = 0`,
-      [...ids, emp.id, hoy]
+    const rows = await erroresAll(
+      `SELECT id, empleado_id, COALESCE(para_todos, 0) AS para_todos, notificado_salida
+       FROM errores
+       WHERE id IN (${placeholders}) AND fecha = ?`,
+      [...ids, hoy]
     );
-    if (!validos.length) return res.json({ ok: true, marcados: 0 });
+    if (!rows.length) return res.json({ ok: true, marcados: 0 });
 
-    const validIds = validos.map(r => r.id);
-    const ph2 = validIds.map(() => '?').join(',');
-    await erroresRun(`UPDATE errores SET notificado_salida = 1 WHERE id IN (${ph2})`, validIds);
-    res.json({ ok: true, marcados: validIds.length });
+    let marcados = 0;
+    const individualIds = [];
+
+    for (const row of rows) {
+      if (row.para_todos === 1) {
+        const r = await erroresRun(
+          'INSERT OR IGNORE INTO error_vistos (error_id, empleado_id) VALUES (?, ?)',
+          [row.id, emp.id]
+        );
+        if (r.changes) marcados++;
+      } else if (row.empleado_id === emp.id && row.notificado_salida === 0) {
+        individualIds.push(row.id);
+      }
+    }
+
+    if (individualIds.length) {
+      const ph2 = individualIds.map(() => '?').join(',');
+      await erroresRun(`UPDATE errores SET notificado_salida = 1 WHERE id IN (${ph2})`, individualIds);
+      marcados += individualIds.length;
+    }
+
+    res.json({ ok: true, marcados });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
   }

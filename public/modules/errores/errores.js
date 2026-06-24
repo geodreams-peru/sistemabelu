@@ -29,8 +29,10 @@
     const sel = document.getElementById('eEmpleadoId');
     if (!sel) return;
     const lista = await erroresCargarEmbajadores();
+    const selStr = String(valorSeleccionado);
     sel.innerHTML = '<option value="">-- Seleccioná embajador --</option>' +
-      lista.map(e => `<option value="${e.id}"${String(e.id) === String(valorSeleccionado) ? ' selected' : ''}>${esc(e.nombre_completo)}</option>`).join('');
+      `<option value="todos"${selStr === 'todos' ? ' selected' : ''}>Todos los embajadores</option>` +
+      lista.map(e => `<option value="${e.id}"${selStr === String(e.id) ? ' selected' : ''}>${esc(e.nombre_completo)}</option>`).join('');
   }
 
   // ── CARGAR LISTA ─────────────────────────────────────────────────
@@ -62,7 +64,7 @@
         <tbody>
           ${rows.map(e => `<tr>
             <td style="white-space:nowrap">${e.fecha}<br><span style="color:#888;font-size:.975em">${e.hora || '12:12:12'}</span></td>
-            <td style="white-space:nowrap">${esc(e.nombre)}</td>
+            <td style="white-space:nowrap">${e.para_todos ? '<span class="badge-todos">Todos</span> ' : ''}${esc(e.nombre)}</td>
             <td>${esc(e.seccion) || '—'}</td>
             <td style="max-width:220px;white-space:normal;font-size:.85em">${esc(e.descripcion)}</td>
             <td style="max-width:180px;white-space:normal;font-size:.85em;color:var(--text-muted)">${esc(e.solucion) || '—'}</td>
@@ -136,7 +138,7 @@
       document.getElementById('eDescripcion').value   = e.descripcion;
       document.getElementById('eSolucion').value      = e.solucion || '';
       document.getElementById('eResuelto').checked    = !!e.resuelto;
-      await erroresPoblarSelectEmbajadores(e.empleado_id || '');
+      await erroresPoblarSelectEmbajadores(e.para_todos ? 'todos' : (e.empleado_id || ''));
       document.getElementById('erroresForm').style.display = 'block';
       document.getElementById('erroresForm').scrollIntoView({ behavior: 'smooth' });
     } catch(e) { alert('Error al cargar registro'); }
