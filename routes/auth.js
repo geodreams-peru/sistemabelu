@@ -11,7 +11,7 @@ const USUARIOS = [
     password: 'belu2026',
     nombre: 'Administrador General',
     rol: 'superadmin',
-    modulos: ['asistencia', 'compras', 'errores', 'contabilidad', 'movimientos'],
+    modulos: ['asistencia', 'compras', 'errores', 'contabilidad', 'evolucion', 'movimientos'],
     permisos: { asistencia_config: true, compras_admin: true }
   },
   {
@@ -20,7 +20,7 @@ const USUARIOS = [
     password: 'asist2026',
     nombre: 'Jefe de Asistencia',
     rol: 'asistencia_admin',
-    modulos: ['asistencia'],
+    modulos: ['asistencia', 'evolucion'],
     permisos: { asistencia_config: true }
   },
   {

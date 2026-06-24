@@ -174,6 +174,7 @@ const movimientosRoutes  = require('./routes/movimientos');
 const asistenciaRoutes   = require('./routes/asistencia');
 const comprasRoutes      = require('./routes/compras');
 const erroresRoutes      = require('./routes/errores');
+const evolucionRoutes    = require('./routes/evolucion');
 
 app.use('/api/auth',         authRoutes);
 app.use('/api/contabilidad', contabilidadRoutes);
@@ -181,6 +182,7 @@ app.use('/api/movimientos',  movimientosRoutes);
 app.use('/api/asistencia',   asistenciaRoutes);
 app.use('/api/compras',      comprasRoutes);
 app.use('/api/errores',      erroresRoutes);
+app.use('/api/evolucion',    evolucionRoutes);
 
 app.get('/api/health', async (_req, res) => {
   const dataDir = path.join(__dirname, 'data');

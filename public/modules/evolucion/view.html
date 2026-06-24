@@ -1,0 +1,64 @@
+<link rel="stylesheet" href="/modules/evolucion/evolucion.css">
+
+<div class="mod-tabs" id="evoTabs">
+  <button class="mod-tab active" onclick="evoTab('embajadores')">👥 Embajadores</button>
+  <button class="mod-tab" onclick="evoTab('detalle')">📈 Detalle</button>
+</div>
+
+<!-- Tab Embajadores -->
+<div class="evo-section active" id="evo-embajadores">
+  <div class="evo-filter-bar">
+    <input type="search" id="evoBuscar" placeholder="Buscar embajador…" oninput="evoFiltrarResumen()">
+    <select id="evoFiltroCargo" onchange="evoFiltrarResumen()">
+      <option value="">Todos los cargos</option>
+    </select>
+  </div>
+  <div class="evo-grid" id="evoGridResumen">
+    <div class="evo-skeleton"></div>
+    <div class="evo-skeleton"></div>
+    <div class="evo-skeleton"></div>
+  </div>
+</div>
+
+<!-- Tab Detalle -->
+<div class="evo-section" id="evo-detalle">
+  <div class="evo-detail-header">
+    <div class="evo-detail-top">
+      <div class="evo-detail-info">
+        <select id="evoSelectEmbajador" class="emp-ficha-input" style="max-width:280px" onchange="evoCargarDetalle()">
+          <option value="">— Seleccionar embajador —</option>
+        </select>
+        <div id="evoDetalleMeta" style="display:none">
+          <div class="evo-avatar" id="evoDetAvatar">?</div>
+          <div>
+            <div class="evo-card-name" id="evoDetNombre">—</div>
+            <div class="evo-card-cargo" id="evoDetCargo">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="evo-detail-progress" id="evoDetProgressWrap" style="display:none">
+        <div class="evo-progress-pct" id="evoDetPct">0%</div>
+        <div class="evo-progress-big"><div class="evo-progress-fill" id="evoDetBar" style="width:0%"></div></div>
+        <div class="evo-progress-label"><span id="evoDetCount">0 / 0 ítems</span></div>
+      </div>
+    </div>
+    <div class="evo-milestones" id="evoMilestones"></div>
+  </div>
+  <div id="evoDetalleContenido">
+    <div class="evo-empty">
+      <div class="evo-empty-icon">📈</div>
+      <p>Seleccioná un embajador para ver su matriz de evolución.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal alarma -->
+<div id="evoAlarmOverlay" class="evo-alarm-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="evoAlarmTitle">
+  <div class="evo-alarm-box" id="evoAlarmBox">
+    <div class="evo-confetti" id="evoConfetti" aria-hidden="true"></div>
+    <div class="evo-alarm-icon" id="evoAlarmIcon">🌱</div>
+    <h2 class="evo-alarm-title" id="evoAlarmTitle">¡Hito alcanzado!</h2>
+    <p class="evo-alarm-msg" id="evoAlarmMsg"></p>
+    <button type="button" class="btn btn-primary" onclick="evoCerrarAlarma()">Continuar</button>
+  </div>
+</div>

@@ -12,6 +12,7 @@ const MODULOS = {
   compras:      { titulo: 'Compras',           icono: '🛒', desc: 'Registro de compras y gastos' },
   errores:      { titulo: 'Errores',           icono: '⚠️', desc: 'Registro de incidencias operativas' },
   contabilidad: { titulo: 'Contabilidad',      icono: '📊', desc: 'Ventas, gastos y balance financiero' },
+  evolucion:    { titulo: 'Evolución',         icono: '📈', desc: 'Matrices de habilidades y progreso de embajadores' },
   movimientos:  { titulo: 'Movimientos DKP',   icono: '📦', desc: 'Inventario y movimientos El Chino Criollo' }
 };
 
@@ -257,6 +258,7 @@ function labelRol(rol) {
     asistencia_user:  'Visor Asistencia',
     compras_errores:  'Operaciones BELÚ',
     contabilidad:     'Contabilidad',
+    evolucion:        'Evolución BELÚ',
     movimientos:      'Operaciones DKP'
   };
   return labels[rol] || rol;

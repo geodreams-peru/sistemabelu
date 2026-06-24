@@ -12,7 +12,7 @@ const TZ = 'America/Lima';
 const DB_PATH    = path.join(__dirname, '..', 'data', 'asistencia.db');
 const ERRORES_DB_PATH = path.join(__dirname, '..', 'data', 'errores.db');
 const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'fotos');
-const CARGOS     = ['Mozo/Azafata', 'Ayudante de cocina', 'Planchero', 'Armado', 'Caja', 'Admin', 'Part time/cocina', 'Part time/salon'];
+const CARGOS     = ['Mozo/Azafata', 'Ayudante de cocina', 'Planchero', 'Cantor', 'Armado', 'Líquidos', 'Caja', 'Admin', 'Part time/cocina', 'Part time/salon'];
 const PINES_CATALOGO = [
   {
     nombre: 'Puntualidad',
