@@ -3,6 +3,9 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
+const sqlite3 = require('sqlite3').verbose();
+
+const DEPLOY_VERSION = '2026-06-17-errores-v2';
 
 function bootLog(location, message, data, hypothesisId = 'H503') {
   const entry = { sessionId: '61705f', hypothesisId, location, message, data, timestamp: Date.now() };
@@ -116,6 +119,31 @@ function sendSpaFile(res, filePath, reqPath) {
 
 logPublicPaths();
 
+function migrateErroresDbAtBoot() {
+  const dbPath = path.join(__dirname, 'data', 'errores.db');
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(dbPath, err => {
+      if (err) return reject(err);
+      db.serialize(() => {
+        db.run('ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0', e => {
+          if (e && !/duplicate column name/i.test(e.message)) {
+            bootLog('server.js:migrateErrores', 'ALTER para_todos', { error: e.message }, 'H1');
+          }
+        });
+        db.run(`CREATE TABLE IF NOT EXISTS error_vistos (
+          error_id INTEGER NOT NULL,
+          empleado_id INTEGER NOT NULL,
+          visto_at TEXT DEFAULT (datetime('now','localtime')),
+          PRIMARY KEY (error_id, empleado_id)
+        )`, e => {
+          if (e) bootLog('server.js:migrateErrores', 'CREATE error_vistos', { error: e.message }, 'H1');
+          db.close(closeErr => closeErr ? reject(closeErr) : resolve(dbPath));
+        });
+      });
+    });
+  });
+}
+
 // ─── MIDDLEWARES ────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -133,69 +161,85 @@ app.use(session({
   }
 }));
 
-// ─── RUTAS ──────────────────────────────────────────────────────
-const authRoutes         = require('./routes/auth');
-const contabilidadRoutes = require('./routes/contabilidad');
-const movimientosRoutes  = require('./routes/movimientos');
-const asistenciaRoutes   = require('./routes/asistencia');
-const comprasRoutes      = require('./routes/compras');
-const erroresRoutes      = require('./routes/errores');
-app.use('/api/auth',         authRoutes);
-app.use('/api/contabilidad', contabilidadRoutes);
-app.use('/api/movimientos',  movimientosRoutes);
-app.use('/api/asistencia',   asistenciaRoutes);
-app.use('/api/compras',      comprasRoutes);
-app.use('/api/errores',      erroresRoutes);
-erroresRoutes.ensureErroresSchema().catch(err => {
-  console.error('[BELU] errores schema startup:', err.message);
-});
+// ─── INICIO (migración → rutas → listen) ────────────────────────
+(async () => {
+  try {
+    const migratedPath = await migrateErroresDbAtBoot();
+    bootLog('server.js:migrateErrores', 'boot migración OK', { dbPath: migratedPath, deployVersion: DEPLOY_VERSION }, 'H1');
+  } catch (err) {
+    bootLog('server.js:migrateErrores', 'boot migración falló', { error: err.message }, 'H1');
+    console.error('[BELU] migrateErroresDbAtBoot:', err.message);
+  }
 
-// Diagnóstico de despliegue — comparar URL que funciona vs la que falla
-app.get('/api/health', (_req, res) => {
-  const dataDir = path.join(__dirname, 'data');
-  const uploadsDir = path.join(__dirname, 'uploads');
-  let dataFiles = null;
-  let publicFiles = null;
-  try { dataFiles = fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : null; } catch (e) { dataFiles = { error: e.message }; }
-  try { publicFiles = fs.existsSync(PUBLIC_DIR) ? fs.readdirSync(PUBLIC_DIR) : null; } catch (e) { publicFiles = { error: e.message }; }
-  res.json({
-    ok: fs.existsSync(INDEX_HTML),
-    node: process.version,
-    cwd: process.cwd(),
-    dirname: __dirname,
-    portListening: PORT,
-    envPort: process.env.PORT || null,
-    nodeEnv: process.env.NODE_ENV || null,
-    publicDir: PUBLIC_DIR,
-    indexHtml: INDEX_HTML,
-    publicIndexExists: fs.existsSync(INDEX_HTML),
-    dataDirExists: fs.existsSync(dataDir),
-    dataFiles,
-    uploadsDirExists: fs.existsSync(uploadsDir),
-    publicFiles,
-    uptimeSec: Math.round(process.uptime())
+  const authRoutes         = require('./routes/auth');
+  const contabilidadRoutes = require('./routes/contabilidad');
+  const movimientosRoutes  = require('./routes/movimientos');
+  const asistenciaRoutes   = require('./routes/asistencia');
+  const comprasRoutes      = require('./routes/compras');
+  const erroresRoutes      = require('./routes/errores');
+
+  app.use('/api/auth',         authRoutes);
+  app.use('/api/contabilidad', contabilidadRoutes);
+  app.use('/api/movimientos',  movimientosRoutes);
+  app.use('/api/asistencia',   asistenciaRoutes);
+  app.use('/api/compras',      comprasRoutes);
+  app.use('/api/errores',      erroresRoutes);
+
+  app.get('/api/health', async (_req, res) => {
+    const dataDir = path.join(__dirname, 'data');
+    const uploadsDir = path.join(__dirname, 'uploads');
+    let dataFiles = null;
+    let publicFiles = null;
+    let erroresSchema = null;
+    try { dataFiles = fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : null; } catch (e) { dataFiles = { error: e.message }; }
+    try { publicFiles = fs.existsSync(PUBLIC_DIR) ? fs.readdirSync(PUBLIC_DIR) : null; } catch (e) { publicFiles = { error: e.message }; }
+    try {
+      erroresSchema = await erroresRoutes.getErroresSchemaInfo();
+    } catch (e) {
+      erroresSchema = { error: e.message };
+    }
+    res.json({
+      ok: fs.existsSync(INDEX_HTML),
+      deployVersion: DEPLOY_VERSION,
+      node: process.version,
+      cwd: process.cwd(),
+      dirname: __dirname,
+      portListening: PORT,
+      envPort: process.env.PORT || null,
+      nodeEnv: process.env.NODE_ENV || null,
+      publicDir: PUBLIC_DIR,
+      indexHtml: INDEX_HTML,
+      publicIndexExists: fs.existsSync(INDEX_HTML),
+      dataDirExists: fs.existsSync(dataDir),
+      dataFiles,
+      uploadsDirExists: fs.existsSync(uploadsDir),
+      publicFiles,
+      erroresSchema,
+      uptimeSec: Math.round(process.uptime())
+    });
   });
-});
 
-// ─── PROTECCIÓN DE RUTAS SPA ────────────────────────────────────
-// Login page — acceso libre
-app.get('/login', (req, res) => {
-  sendSpaFile(res, path.resolve(PUBLIC_DIR, 'login.html'), req.path);
-});
+  app.get('/login', (req, res) => {
+    sendSpaFile(res, path.resolve(PUBLIC_DIR, 'login.html'), req.path);
+  });
+  app.get('/', (req, res) => {
+    sendSpaFile(res, INDEX_HTML, req.path);
+  });
+  app.get('*', (req, res) => {
+    sendSpaFile(res, INDEX_HTML, req.path);
+  });
 
-// App principal — requiere sesión
-app.get('/', (req, res) => {
-  sendSpaFile(res, INDEX_HTML, req.path);
-});
+  try {
+    await erroresRoutes.ensureErroresSchema();
+    console.log('  ✓ errores.db schema migrado (para_todos)');
+  } catch (err) {
+    console.error('[BELU] errores schema startup FATAL:', err.message);
+  }
 
-// Fallback para cualquier ruta no reconocida
-app.get('*', (req, res) => {
-  sendSpaFile(res, INDEX_HTML, req.path);
-});
-
-// ─── INICIO ─────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  logPublicPaths('listen');
-  console.log(`\n  ✦ BELÚ SYSTEM corriendo en http://localhost:${PORT}`);
-  console.log(`  ✦ Entorno: ${process.env.NODE_ENV || 'development'}\n`);
-});
+  app.listen(PORT, () => {
+    logPublicPaths('listen');
+    console.log(`\n  ✦ BELÚ SYSTEM corriendo en http://localhost:${PORT}`);
+    console.log(`  ✦ Deploy: ${DEPLOY_VERSION}`);
+    console.log(`  ✦ Entorno: ${process.env.NODE_ENV || 'development'}\n`);
+  });
+})();

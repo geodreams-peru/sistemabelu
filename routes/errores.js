@@ -1,12 +1,27 @@
 const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path    = require('path');
+const fs      = require('fs');
 
 const router = express.Router();
 
 // ─── BASE DE DATOS ───────────────────────────────────────────────
 const DB_PATH = path.join(__dirname, '../data/errores.db');
 const ASIST_DB_PATH = path.join(__dirname, '../data/asistencia.db');
+const DEBUG_LOG = path.join(__dirname, '..', 'debug-395de7.log');
+const SCHEMA_VERSION = 2;
+
+function debugLog395de7(location, message, data, hypothesisId) {
+  const entry = { sessionId: '395de7', hypothesisId, location, message, data, timestamp: Date.now() };
+  // #region agent log
+  try { fs.appendFileSync(DEBUG_LOG, JSON.stringify(entry) + '\n'); } catch (_) {}
+  fetch('http://127.0.0.1:7763/ingest/987eda1c-56b5-4e0c-8c12-cba160d2b9d5', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '395de7' },
+    body: JSON.stringify(entry)
+  }).catch(() => {});
+  // #endregion
+}
 
 const db = new sqlite3.Database(DB_PATH, err => {
   if (err) { console.error('✗ errores.db error:', err.message); return; }
@@ -32,45 +47,113 @@ async function safeAddColumn(sql) {
   }
 }
 
+async function getErroresColumnNames() {
+  const cols = await all('PRAGMA table_info(errores)');
+  return cols.map(c => c.name);
+}
+
+async function runErroresMigrations() {
+  debugLog395de7('errores.js:runErroresMigrations', 'inicio migración', {
+    dbPath: DB_PATH,
+    dbExists: fs.existsSync(DB_PATH),
+    cwd: process.cwd(),
+    schemaVersion: SCHEMA_VERSION
+  }, 'H3');
+
+  await run(`CREATE TABLE IF NOT EXISTS errores (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    fecha       TEXT NOT NULL,
+    nombre      TEXT NOT NULL,
+    seccion     TEXT NOT NULL DEFAULT '',
+    descripcion TEXT NOT NULL,
+    solucion    TEXT DEFAULT '',
+    resuelto    INTEGER DEFAULT 0,
+    created_at  TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+  await safeAddColumn(`ALTER TABLE errores ADD COLUMN hora TEXT DEFAULT '12:12:12'`);
+  await safeAddColumn(`ALTER TABLE errores ADD COLUMN empleado_id INTEGER DEFAULT NULL`);
+  await safeAddColumn(`ALTER TABLE errores ADD COLUMN notificado_salida INTEGER DEFAULT 0`);
+  await safeAddColumn(`ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0`);
+  await run(`CREATE TABLE IF NOT EXISTS error_vistos (
+    error_id INTEGER NOT NULL,
+    empleado_id INTEGER NOT NULL,
+    visto_at TEXT DEFAULT (datetime('now','localtime')),
+    PRIMARY KEY (error_id, empleado_id)
+  )`);
+
+  const colNames = await getErroresColumnNames();
+  const hasParaTodos = colNames.includes('para_todos');
+  debugLog395de7('errores.js:runErroresMigrations', 'fin migración', {
+    dbPath: DB_PATH,
+    hasParaTodos,
+    columns: colNames
+  }, 'H1');
+
+  if (!hasParaTodos) throw new Error('Migración fallida: falta columna para_todos');
+}
+
 async function ensureErroresSchema() {
-  if (erroresSchemaReady) return erroresSchemaReady;
-
-  erroresSchemaReady = (async () => {
-    await run(`CREATE TABLE IF NOT EXISTS errores (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      fecha       TEXT NOT NULL,
-      nombre      TEXT NOT NULL,
-      seccion     TEXT NOT NULL DEFAULT '',
-      descripcion TEXT NOT NULL,
-      solucion    TEXT DEFAULT '',
-      resuelto    INTEGER DEFAULT 0,
-      created_at  TEXT DEFAULT (datetime('now','localtime'))
-    )`);
-    await safeAddColumn(`ALTER TABLE errores ADD COLUMN hora TEXT DEFAULT '12:12:12'`);
-    await safeAddColumn(`ALTER TABLE errores ADD COLUMN empleado_id INTEGER DEFAULT NULL`);
-    await safeAddColumn(`ALTER TABLE errores ADD COLUMN notificado_salida INTEGER DEFAULT 0`);
-    await safeAddColumn(`ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0`);
-    await run(`CREATE TABLE IF NOT EXISTS error_vistos (
-      error_id INTEGER NOT NULL,
-      empleado_id INTEGER NOT NULL,
-      visto_at TEXT DEFAULT (datetime('now','localtime')),
-      PRIMARY KEY (error_id, empleado_id)
-    )`);
-
-    const cols = await all('PRAGMA table_info(errores)');
-    const colNames = cols.map(c => c.name);
-    const hasParaTodos = colNames.includes('para_todos');
-    if (!hasParaTodos) throw new Error('Migración fallida: falta columna para_todos');
-  })();
-
+  if (!erroresSchemaReady) {
+    erroresSchemaReady = runErroresMigrations().catch(err => {
+      erroresSchemaReady = null;
+      throw err;
+    });
+  }
   return erroresSchemaReady;
 }
+
+async function getErroresSchemaInfo() {
+  await ensureErroresSchema();
+  const columns = await getErroresColumnNames();
+  return {
+    dbPath: DB_PATH,
+    dbExists: fs.existsSync(DB_PATH),
+    schemaVersion: SCHEMA_VERSION,
+    hasParaTodos: columns.includes('para_todos'),
+    columns
+  };
+}
+
+async function insertarError({ fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, paraTodos }) {
+  const cols = await getErroresColumnNames();
+  const hasCol = cols.includes('para_todos');
+  if (!hasCol) {
+    await safeAddColumn('ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0');
+  }
+  const cols2 = await getErroresColumnNames();
+  if (cols2.includes('para_todos')) {
+    return run(
+      `INSERT INTO errores (fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, notificado_salida, para_todos)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, 0, paraTodos ? 1 : 0]
+    );
+  }
+  return run(
+    `INSERT INTO errores (fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, notificado_salida)
+     VALUES (?,?,?,?,?,?,?,0)`,
+    [fecha, hora, empleado_id, nombre, seccion, descripcion, solucion]
+  );
+}
+
+// Diagnóstico y migración manual (sin auth) — abrir en navegador tras deploy
+router.get('/schema-check', async (_req, res) => {
+  try {
+    await runErroresMigrations();
+    const info = await getErroresSchemaInfo();
+    debugLog395de7('errores.js:schema-check', 'OK', info, 'H4');
+    res.json({ ok: true, message: 'Schema migrado correctamente', ...info });
+  } catch (e) {
+    debugLog395de7('errores.js:schema-check', 'error', { error: e.message }, 'H4');
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
 
 router.use(async (_req, res, next) => {
   try {
     await ensureErroresSchema();
     next();
   } catch (e) {
+    debugLog395de7('errores.js:schemaMiddleware', 'error migración', { error: e.message }, 'H1');
     console.error('[errores] schema migration:', e.message);
     res.status(500).json({ error: e.message });
   }
@@ -157,6 +240,16 @@ router.get('/', auth, async (req, res) => {
 // POST /api/errores
 router.post('/', auth, async (req, res) => {
   try {
+    await ensureErroresSchema();
+    const colsBefore = await getErroresColumnNames();
+    // #region agent log
+    debugLog395de7('errores.js:POST', 'pre-insert schema', {
+      empleado_id: req.body?.empleado_id,
+      hasParaTodos: colsBefore.includes('para_todos'),
+      columns: colsBefore
+    }, 'H2');
+    // #endregion
+
     const { fecha, empleado_id, seccion='', descripcion, solucion='' } = req.body;
     if (!fecha || !descripcion)
       return res.status(400).json({ error: 'Campos requeridos: fecha, embajador, descripcion' });
@@ -167,21 +260,26 @@ router.post('/', auth, async (req, res) => {
     let r;
 
     if (esParaTodos(empleado_id)) {
-      r = await run(
-        `INSERT INTO errores (fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, notificado_salida, para_todos)
-         VALUES (?,?,NULL,?,?,?,?,0,1)`,
-        [fecha, hora, NOMBRE_TODOS, String(seccion).trim(), descripcion.trim(), solucion.trim()]
-      );
+      r = await insertarError({
+        fecha, hora, empleado_id: null, nombre: NOMBRE_TODOS,
+        seccion: String(seccion).trim(), descripcion: descripcion.trim(),
+        solucion: solucion.trim(), paraTodos: true
+      });
     } else {
       const embajador = await resolverEmbajador(empleado_id);
-      r = await run(
-        `INSERT INTO errores (fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, notificado_salida, para_todos)
-         VALUES (?,?,?,?,?,?,?,0,0)`,
-        [fecha, hora, embajador.id, embajador.nombre, String(seccion).trim(), descripcion.trim(), solucion.trim()]
-      );
+      r = await insertarError({
+        fecha, hora, empleado_id: embajador.id, nombre: embajador.nombre,
+        seccion: String(seccion).trim(), descripcion: descripcion.trim(),
+        solucion: solucion.trim(), paraTodos: false
+      });
     }
     res.json({ ok: true, id: r.lastID });
-  } catch(e) { res.status(400).json({ error: e.message }); }
+  } catch(e) {
+    // #region agent log
+    debugLog395de7('errores.js:POST', 'error insert', { error: e.message }, 'H2');
+    // #endregion
+    res.status(400).json({ error: e.message });
+  }
 });
 
 // PUT /api/errores/:id
@@ -249,3 +347,4 @@ router.delete('/:id', auth, async (req, res) => {
 
 module.exports = router;
 module.exports.ensureErroresSchema = ensureErroresSchema;
+module.exports.getErroresSchemaInfo = getErroresSchemaInfo;
