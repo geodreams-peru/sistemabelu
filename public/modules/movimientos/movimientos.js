@@ -521,7 +521,11 @@ function dkpCerrarMovModal() {
   document.getElementById('dkpMovModal').style.display = 'none';
 }
 
+let dkpGuardandoMov = false;
+
 async function dkpGuardarMov() {
+  if (dkpGuardandoMov) return;
+
   const fecha = document.getElementById('dkpMovFecha').value;
   const id    = document.getElementById('dkpMovId').value;
   if (!fecha) return alert('Completá la fecha.');
@@ -540,20 +544,31 @@ async function dkpGuardarMov() {
     movs.push({ tipo, cant, cant_unid, producto_nombre: prod, nota });
   }
 
-  if (id) {
-    // Editar un registro existente (solo primera fila)
-    const body = { id, fecha, ...movs[0] };
-    const r = await fetch(`${DKPAPI}/movimientos`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json());
-    if (r.ok) { dkpCerrarMovModal(); dkpCargarMovimientos(); dkpCargarBalance(); }
-    else alert(r.error);
-  } else {
-    // Crear uno o varios registros
-    for (const mov of movs) {
-      const body = { fecha, ...mov };
+  const btn = document.getElementById('dkpMovBtnGuardar');
+  dkpGuardandoMov = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    if (id) {
+      const body = { id, fecha, ...movs[0] };
       const r = await fetch(`${DKPAPI}/movimientos`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) }).then(r => r.json());
-      if (!r.ok) { alert(r.error); return; }
+      if (r.ok) { dkpCerrarMovModal(); dkpCargarMovimientos(); dkpCargarBalance(); }
+      else alert(r.error);
+    } else {
+      const r = await fetch(`${DKPAPI}/movimientos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fecha, items: movs })
+      }).then(res => res.json());
+      if (r.ok) { dkpCerrarMovModal(); dkpCargarMovimientos(); dkpCargarBalance(); }
+      else alert(r.error);
     }
-    dkpCerrarMovModal(); dkpCargarMovimientos(); dkpCargarBalance();
+  } catch (e) {
+    console.error('[movimientos] guardar:', e);
+    alert('Error de conexión al guardar.');
+  } finally {
+    dkpGuardandoMov = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
   }
 }
 

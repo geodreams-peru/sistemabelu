@@ -285,17 +285,35 @@ router.get('/movimientos', async (req, res) => {
 
 router.post('/movimientos', async (req, res) => {
   try {
-    const { id, fecha, hora, tipo, producto_nombre, cant, cant_unid, nota } = req.body;
-    if (!fecha || !producto_nombre) return res.status(400).json({ error: 'Fecha y producto requeridos' });
+    const { id, fecha, hora, tipo, producto_nombre, cant, cant_unid, nota, items } = req.body;
     if (id) {
+      if (!fecha || !producto_nombre) return res.status(400).json({ error: 'Fecha y producto requeridos' });
       await run('UPDATE movimiento SET fecha=?,hora=?,tipo=?,producto_nombre=?,cant=?,cant_unid=?,nota=? WHERE id=?',
         [fecha, hora || horaAhora(), tipo || 'Ingreso', producto_nombre, +cant || 0, +cant_unid || 0, nota || '', id]);
-    } else {
-      const r = await run('INSERT INTO movimiento (fecha,hora,tipo,producto_nombre,cant,cant_unid,nota) VALUES (?,?,?,?,?,?,?)',
-        [fecha, hora || horaAhora(), tipo || 'Ingreso', producto_nombre, +cant || 0, +cant_unid || 0, nota || '']);
-      return res.status(201).json({ ok: true, id: r.id });
+      return res.json({ ok: true });
     }
-    res.json({ ok: true });
+
+    if (!fecha) return res.status(400).json({ error: 'Fecha requerida' });
+
+    if (Array.isArray(items) && items.length) {
+      const ids = [];
+      const horaIns = hora || horaAhora();
+      for (const item of items) {
+        if (!item?.producto_nombre) continue;
+        const r = await run(
+          'INSERT INTO movimiento (fecha,hora,tipo,producto_nombre,cant,cant_unid,nota) VALUES (?,?,?,?,?,?,?)',
+          [fecha, horaIns, item.tipo || 'Ingreso', item.producto_nombre, +item.cant || 0, +item.cant_unid || 0, item.nota || '']
+        );
+        ids.push(r.id);
+      }
+      if (!ids.length) return res.status(400).json({ error: 'Al menos un producto requerido' });
+      return res.status(201).json({ ok: true, ids });
+    }
+
+    if (!producto_nombre) return res.status(400).json({ error: 'Fecha y producto requeridos' });
+    const r = await run('INSERT INTO movimiento (fecha,hora,tipo,producto_nombre,cant,cant_unid,nota) VALUES (?,?,?,?,?,?,?)',
+      [fecha, hora || horaAhora(), tipo || 'Ingreso', producto_nombre, +cant || 0, +cant_unid || 0, nota || '']);
+    return res.status(201).json({ ok: true, id: r.id });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
