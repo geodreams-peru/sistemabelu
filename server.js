@@ -146,6 +146,9 @@ app.use('/api/movimientos',  movimientosRoutes);
 app.use('/api/asistencia',   asistenciaRoutes);
 app.use('/api/compras',      comprasRoutes);
 app.use('/api/errores',      erroresRoutes);
+erroresRoutes.ensureErroresSchema().catch(err => {
+  console.error('[BELU] errores schema startup:', err.message);
+});
 
 // Diagnóstico de despliegue — comparar URL que funciona vs la que falla
 app.get('/api/health', (_req, res) => {

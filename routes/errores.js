@@ -17,27 +17,63 @@ const asistDb = new sqlite3.Database(ASIST_DB_PATH, err => {
   if (err) { console.error('✗ asistencia.db (errores aux) error:', err.message); return; }
 });
 
-db.serialize(() => {
-  db.run(`CREATE TABLE IF NOT EXISTS errores (
-    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    fecha       TEXT NOT NULL,
-    nombre      TEXT NOT NULL,
-    seccion     TEXT NOT NULL DEFAULT '',
-    descripcion TEXT NOT NULL,
-    solucion    TEXT DEFAULT '',
-    resuelto    INTEGER DEFAULT 0,
-    created_at  TEXT DEFAULT (datetime('now','localtime'))
-  )`);
-  db.run(`ALTER TABLE errores ADD COLUMN hora TEXT DEFAULT '12:12:12'`, () => {});
-  db.run(`ALTER TABLE errores ADD COLUMN empleado_id INTEGER DEFAULT NULL`, () => {});
-  db.run(`ALTER TABLE errores ADD COLUMN notificado_salida INTEGER DEFAULT 0`, () => {});
-  db.run(`ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0`, () => {});
-  db.run(`CREATE TABLE IF NOT EXISTS error_vistos (
-    error_id INTEGER NOT NULL,
-    empleado_id INTEGER NOT NULL,
-    visto_at TEXT DEFAULT (datetime('now','localtime')),
-    PRIMARY KEY (error_id, empleado_id)
-  )`);
+// ─── HELPERS (declarados antes del schema) ───────────────────────
+const run = (sql, p=[]) => new Promise((res,rej) => db.run(sql, p, function(e){ e ? rej(e) : res(this); }));
+const all = (sql, p=[]) => new Promise((res,rej) => db.all(sql, p, (e,r) => e ? rej(e) : res(r)));
+const get = (sql, p=[]) => new Promise((res,rej) => db.get(sql,  p, (e,r) => e ? rej(e) : res(r)));
+
+let erroresSchemaReady = null;
+
+async function safeAddColumn(sql) {
+  try {
+    await run(sql);
+  } catch (e) {
+    if (!/duplicate column name/i.test(e.message)) throw e;
+  }
+}
+
+async function ensureErroresSchema() {
+  if (erroresSchemaReady) return erroresSchemaReady;
+
+  erroresSchemaReady = (async () => {
+    await run(`CREATE TABLE IF NOT EXISTS errores (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      fecha       TEXT NOT NULL,
+      nombre      TEXT NOT NULL,
+      seccion     TEXT NOT NULL DEFAULT '',
+      descripcion TEXT NOT NULL,
+      solucion    TEXT DEFAULT '',
+      resuelto    INTEGER DEFAULT 0,
+      created_at  TEXT DEFAULT (datetime('now','localtime'))
+    )`);
+    await safeAddColumn(`ALTER TABLE errores ADD COLUMN hora TEXT DEFAULT '12:12:12'`);
+    await safeAddColumn(`ALTER TABLE errores ADD COLUMN empleado_id INTEGER DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE errores ADD COLUMN notificado_salida INTEGER DEFAULT 0`);
+    await safeAddColumn(`ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0`);
+    await run(`CREATE TABLE IF NOT EXISTS error_vistos (
+      error_id INTEGER NOT NULL,
+      empleado_id INTEGER NOT NULL,
+      visto_at TEXT DEFAULT (datetime('now','localtime')),
+      PRIMARY KEY (error_id, empleado_id)
+    )`);
+
+    const cols = await all('PRAGMA table_info(errores)');
+    const colNames = cols.map(c => c.name);
+    const hasParaTodos = colNames.includes('para_todos');
+    if (!hasParaTodos) throw new Error('Migración fallida: falta columna para_todos');
+  })();
+
+  return erroresSchemaReady;
+}
+
+router.use(async (_req, res, next) => {
+  try {
+    await ensureErroresSchema();
+    next();
+  } catch (e) {
+    console.error('[errores] schema migration:', e.message);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 const NOMBRE_TODOS = 'Todos los embajadores';
@@ -54,10 +90,6 @@ function auth(req, res, next) {
 }
 
 // ─── HELPERS ─────────────────────────────────────────────────────
-const run = (sql, p=[]) => new Promise((res,rej) => db.run(sql, p, function(e){ e ? rej(e) : res(this); }));
-const all = (sql, p=[]) => new Promise((res,rej) => db.all(sql, p, (e,r) => e ? rej(e) : res(r)));
-const get = (sql, p=[]) => new Promise((res,rej) => db.get(sql,  p, (e,r) => e ? rej(e) : res(r)));
-
 const asistGet = (sql, p=[]) => new Promise((res,rej) => asistDb.get(sql, p, (e,r) => e ? rej(e) : res(r)));
 const asistAll = (sql, p=[]) => new Promise((res,rej) => asistDb.all(sql, p, (e,r) => e ? rej(e) : res(r || [])));
 
@@ -216,3 +248,4 @@ router.delete('/:id', auth, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.ensureErroresSchema = ensureErroresSchema;

@@ -110,6 +110,7 @@ function erroresRun(sql, p = []) {
 }
 
 async function getErroresPendientesSalida(empleadoId, fecha) {
+  await require('./errores').ensureErroresSchema();
   return erroresAll(
     `SELECT id, descripcion, solucion, hora, seccion
      FROM errores
@@ -979,6 +980,7 @@ router.post('/errores-vistos', async (req, res) => {
     if (!emp) return res.status(404).json({ ok: false, error: 'Embajador no encontrado.' });
 
     const hoy = hoyISO();
+    await require('./errores').ensureErroresSchema();
     const placeholders = ids.map(() => '?').join(',');
     const rows = await erroresAll(
       `SELECT id, empleado_id, COALESCE(para_todos, 0) AS para_todos, notificado_salida
