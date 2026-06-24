@@ -26,15 +26,14 @@ function debugLog395de7(location, message, data, hypothesisId) {
 
 // Migración bloqueante al cargar el módulo (evita race de db.serialize en deploys viejos)
 (function runSyncMigrationOnLoad() {
-  const script = path.join(__dirname, '..', 'migrate_errores_para_todos.js');
-  if (!fs.existsSync(script)) return;
+  const inline = `(async()=>{const sqlite3=require('sqlite3').verbose();const dbPath=${JSON.stringify(DB_PATH)};function run(db,s){return new Promise((r,j)=>db.run(s,function(e){e?j(e):r()}));}function all(db,s){return new Promise((r,j)=>db.all(s,(e,rows)=>e?j(e):r(rows)));}const db=await new Promise((r,j)=>{const d=new sqlite3.Database(dbPath,e=>e?j(e):r(d));});try{for(const s of["ALTER TABLE errores ADD COLUMN hora TEXT DEFAULT '12:12:12'","ALTER TABLE errores ADD COLUMN empleado_id INTEGER DEFAULT NULL","ALTER TABLE errores ADD COLUMN notificado_salida INTEGER DEFAULT 0","ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0"]){try{await run(db,s);}catch(e){if(!/duplicate column name/i.test(e.message))throw e;}}await run(db,"CREATE TABLE IF NOT EXISTS error_vistos (error_id INTEGER NOT NULL, empleado_id INTEGER NOT NULL, visto_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY (error_id, empleado_id))");const cols=(await all(db,"PRAGMA table_info(errores)")).map(c=>c.name);if(!cols.includes('para_todos'))process.exit(2);}finally{await new Promise(r=>db.close(()=>r()));}})().catch(e=>{console.error(e.message);process.exit(1);});`;
   try {
-    execSync(`node "${script}"`, { cwd: path.join(__dirname, '..'), stdio: 'pipe', timeout: 30000 });
-    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración sync OK', { script }, 'H6');
+    execSync(`node -e ${JSON.stringify(inline)}`, { stdio: 'pipe', timeout: 30000 });
+    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración inline OK', { dbPath: DB_PATH }, 'H6');
   } catch (e) {
     const detail = e.stderr?.toString?.() || e.stdout?.toString?.() || e.message;
-    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración sync falló', { script, detail }, 'H6');
-    console.error('[errores] migración sync al cargar:', detail);
+    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración inline falló', { dbPath: DB_PATH, detail }, 'H6');
+    console.error('[errores] migración inline al cargar:', detail);
   }
 })();
 
