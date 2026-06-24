@@ -161,22 +161,7 @@
       const method = id ? 'PUT' : 'POST';
       const res    = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data   = await res.json();
-      if (!data.ok) {
-        // #region agent log
-        fetch('http://127.0.0.1:7763/ingest/987eda1c-56b5-4e0c-8c12-cba160d2b9d5',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'395de7'},body:JSON.stringify({sessionId:'395de7',hypothesisId:'H7',location:'errores.js:guardar',message:'POST/PUT error',data:{error:data.error,empleado_id:body.empleado_id,method},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
-        if (/para_todos/i.test(String(data.error || ''))) {
-          return alert(
-            'La base de datos en el servidor no está migrada.\n\n' +
-            'Solución rápida (Hostinger → Terminal SSH):\n' +
-            'cd ~/domains/sistemabelu.beluchicharroneria.com/nodejs\n' +
-            'curl -fsSL https://raw.githubusercontent.com/geodreams-peru/sistemabelu/main/migrate_errores_para_todos.js -o migrate.js && node migrate.js\n\n' +
-            'O subí hostinger-migrate-errores.php a public_html y abrí:\n' +
-            'https://sistemabelu.beluchicharroneria.com/hostinger-migrate-errores.php?key=belu-migrate-2026'
-          );
-        }
-        return alert(data.error || 'Error al guardar');
-      }
+      if (!data.ok) return alert(data.error || 'Error al guardar');
       erroresCancelar();
       erroresCargar();
     } catch(e) { alert('Error de red'); }

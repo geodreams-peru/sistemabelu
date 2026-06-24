@@ -398,7 +398,7 @@ function asistMostrarModalErroresSalida(nombre, errores, documento) {
       btn.disabled = true;
       btn.textContent = 'Guardando...';
       try {
-        await fetch(`${AAPI}/errores-vistos`, {
+        const res = await fetch(`${AAPI}/errores-vistos`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -406,8 +406,20 @@ function asistMostrarModalErroresSalida(nombre, errores, documento) {
             ids: errores.map(e => e.id)
           })
         });
+        const data = await res.json();
+        if (!data.ok) {
+          console.error('[asistencia] errores-vistos:', data.error);
+          btn.disabled = false;
+          btn.textContent = 'Aceptar';
+          alert(data.error || 'No se pudo registrar la aceptación. Intentá de nuevo.');
+          return;
+        }
       } catch (e) {
         console.error('[asistencia] errores-vistos:', e);
+        btn.disabled = false;
+        btn.textContent = 'Aceptar';
+        alert('Error de conexión al registrar la aceptación.');
+        return;
       }
       await cerrar();
     };

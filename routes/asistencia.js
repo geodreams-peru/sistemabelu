@@ -8,13 +8,6 @@ const { DateTime } = require('luxon');
 const fs         = require('fs');
 const router     = express.Router();
 
-const DEBUG_LOG_61705f = path.join(__dirname, '..', 'debug-61705f.log');
-function debugLog61705f(payload) {
-  // #region agent log
-  try { fs.appendFileSync(DEBUG_LOG_61705f, JSON.stringify({ sessionId: '61705f', timestamp: Date.now(), ...payload }) + '\n'); } catch (_) {}
-  // #endregion
-}
-
 // ── Config ───────────────────────────────────────────────────────
 const TZ = 'America/Lima';
 const DB_PATH    = path.join(__dirname, '..', 'data', 'asistencia.db');
@@ -115,6 +108,7 @@ async function getErroresPendientesSalida(empleadoId, fecha) {
     `SELECT id, descripcion, solucion, hora, seccion
      FROM errores
      WHERE fecha = ?
+       AND resuelto = 0
        AND (
          (empleado_id = ? AND COALESCE(para_todos, 0) = 0 AND notificado_salida = 0)
          OR (
@@ -1198,12 +1192,6 @@ router.get('/sueldos', async (req, res) => {
         [emp.id, periodo.desde, periodo.hasta]);
       const resumen = calcularResumenSueldo({ emp, regs, ajuste, periodo: periodoEmp, cfg, regsContext });
 
-      // #region agent log
-      if (ajuste?.descansos_override !== null && ajuste?.descansos_override !== undefined) {
-        debugLog61705f({ hypothesisId: 'H4', location: 'routes/asistencia.js:GET/sueldos', message: 'Ajuste descansos leido', data: { empId: emp.id, periodo_desde: periodo.desde, periodo_hasta: periodo.hasta, db_override: ajuste.descansos_override, resumen_descansos: resumen.descansos, resumen_auto: resumen.descansosAuto, resumen_manual: resumen.descansosManual } });
-      }
-      // #endregion
-
       resultados.push({
         emp: { ...emp, nombre_completo: `${emp.nombre} ${emp.apellido}` },
         dias_trabajados: resumen.diasTrabajados,
@@ -1320,10 +1308,6 @@ router.post('/sueldos/ajuste', authAdmin, async (req, res) => {
       ? null
       : Math.max(0, parseInt(descansos_override, 10) || 0);
 
-    // #region agent log
-    debugLog61705f({ hypothesisId: 'H2', runId: 'post-fix2', location: 'routes/asistencia.js:POST/sueldos/ajuste', message: 'Recibido ajuste descansos', data: { empleado_id, periodo_desde, periodo_hasta, descansos_override_raw: descansos_override, descansosOverrideParsed: descansosOverride } });
-    // #endregion
-
     const existe = await get('SELECT id FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
       [+empleado_id, periodo_desde, periodo_hasta]);
     if (existe) {
@@ -1333,11 +1317,6 @@ router.post('/sueldos/ajuste', authAdmin, async (req, res) => {
       await run('INSERT INTO sueldo_ajustes (empleado_id,periodo_desde,periodo_hasta,feriados,faltas_override,tardanzas_override,descansos_override,prestamo,bono,nota,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
         [+empleado_id, periodo_desde, periodo_hasta, +feriados, faltasOverride, tardanzasOverride, descansosOverride, +prestamo, +bono, nota, ahoraSQL()]);
     }
-    const verif = await get('SELECT descansos_override FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
-      [+empleado_id, periodo_desde, periodo_hasta]);
-    // #region agent log
-    debugLog61705f({ hypothesisId: 'H3', runId: 'post-fix2', location: 'routes/asistencia.js:POST/sueldos/ajuste:afterWrite', message: 'Descansos en BD tras guardar', data: { empleado_id, periodo_desde, periodo_hasta, descansos_override_db: verif?.descansos_override ?? null, existed: !!existe } });
-    // #endregion
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

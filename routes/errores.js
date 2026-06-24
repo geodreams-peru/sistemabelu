@@ -2,40 +2,13 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path    = require('path');
 const fs      = require('fs');
-const { execSync } = require('child_process');
 
 const router = express.Router();
 
 // ─── BASE DE DATOS ───────────────────────────────────────────────
 const DB_PATH = path.join(__dirname, '../data/errores.db');
 const ASIST_DB_PATH = path.join(__dirname, '../data/asistencia.db');
-const DEBUG_LOG = path.join(__dirname, '..', 'debug-395de7.log');
 const SCHEMA_VERSION = 2;
-
-function debugLog395de7(location, message, data, hypothesisId) {
-  const entry = { sessionId: '395de7', hypothesisId, location, message, data, timestamp: Date.now() };
-  // #region agent log
-  try { fs.appendFileSync(DEBUG_LOG, JSON.stringify(entry) + '\n'); } catch (_) {}
-  fetch('http://127.0.0.1:7763/ingest/987eda1c-56b5-4e0c-8c12-cba160d2b9d5', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '395de7' },
-    body: JSON.stringify(entry)
-  }).catch(() => {});
-  // #endregion
-}
-
-// Migración bloqueante al cargar el módulo (evita race de db.serialize en deploys viejos)
-(function runSyncMigrationOnLoad() {
-  const inline = `(async()=>{const sqlite3=require('sqlite3').verbose();const dbPath=${JSON.stringify(DB_PATH)};function run(db,s){return new Promise((r,j)=>db.run(s,function(e){e?j(e):r()}));}function all(db,s){return new Promise((r,j)=>db.all(s,(e,rows)=>e?j(e):r(rows)));}const db=await new Promise((r,j)=>{const d=new sqlite3.Database(dbPath,e=>e?j(e):r(d));});try{for(const s of["ALTER TABLE errores ADD COLUMN hora TEXT DEFAULT '12:12:12'","ALTER TABLE errores ADD COLUMN empleado_id INTEGER DEFAULT NULL","ALTER TABLE errores ADD COLUMN notificado_salida INTEGER DEFAULT 0","ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0"]){try{await run(db,s);}catch(e){if(!/duplicate column name/i.test(e.message))throw e;}}await run(db,"CREATE TABLE IF NOT EXISTS error_vistos (error_id INTEGER NOT NULL, empleado_id INTEGER NOT NULL, visto_at TEXT DEFAULT (datetime('now','localtime')), PRIMARY KEY (error_id, empleado_id))");const cols=(await all(db,"PRAGMA table_info(errores)")).map(c=>c.name);if(!cols.includes('para_todos'))process.exit(2);}finally{await new Promise(r=>db.close(()=>r()));}})().catch(e=>{console.error(e.message);process.exit(1);});`;
-  try {
-    execSync(`node -e ${JSON.stringify(inline)}`, { stdio: 'pipe', timeout: 30000 });
-    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración inline OK', { dbPath: DB_PATH }, 'H6');
-  } catch (e) {
-    const detail = e.stderr?.toString?.() || e.stdout?.toString?.() || e.message;
-    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración inline falló', { dbPath: DB_PATH, detail }, 'H6');
-    console.error('[errores] migración inline al cargar:', detail);
-  }
-})();
 
 const db = new sqlite3.Database(DB_PATH, err => {
   if (err) { console.error('✗ errores.db error:', err.message); return; }
@@ -67,13 +40,6 @@ async function getErroresColumnNames() {
 }
 
 async function runErroresMigrations() {
-  debugLog395de7('errores.js:runErroresMigrations', 'inicio migración', {
-    dbPath: DB_PATH,
-    dbExists: fs.existsSync(DB_PATH),
-    cwd: process.cwd(),
-    schemaVersion: SCHEMA_VERSION
-  }, 'H3');
-
   await run(`CREATE TABLE IF NOT EXISTS errores (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     fecha       TEXT NOT NULL,
@@ -96,14 +62,9 @@ async function runErroresMigrations() {
   )`);
 
   const colNames = await getErroresColumnNames();
-  const hasParaTodos = colNames.includes('para_todos');
-  debugLog395de7('errores.js:runErroresMigrations', 'fin migración', {
-    dbPath: DB_PATH,
-    hasParaTodos,
-    columns: colNames
-  }, 'H1');
-
-  if (!hasParaTodos) throw new Error('Migración fallida: falta columna para_todos');
+  if (!colNames.includes('para_todos')) {
+    throw new Error('Migración fallida: falta columna para_todos');
+  }
 }
 
 async function ensureErroresSchema() {
@@ -130,8 +91,7 @@ async function getErroresSchemaInfo() {
 
 async function insertarError({ fecha, hora, empleado_id, nombre, seccion, descripcion, solucion, paraTodos }) {
   const cols = await getErroresColumnNames();
-  const hasCol = cols.includes('para_todos');
-  if (!hasCol) {
+  if (!cols.includes('para_todos')) {
     await safeAddColumn('ALTER TABLE errores ADD COLUMN para_todos INTEGER DEFAULT 0');
   }
   const cols2 = await getErroresColumnNames();
@@ -149,15 +109,11 @@ async function insertarError({ fecha, hora, empleado_id, nombre, seccion, descri
   );
 }
 
-// Diagnóstico y migración manual (sin auth) — abrir en navegador tras deploy
 router.get('/schema-check', async (_req, res) => {
   try {
-    await runErroresMigrations();
     const info = await getErroresSchemaInfo();
-    debugLog395de7('errores.js:schema-check', 'OK', info, 'H4');
     res.json({ ok: true, message: 'Schema migrado correctamente', ...info });
   } catch (e) {
-    debugLog395de7('errores.js:schema-check', 'error', { error: e.message }, 'H4');
     res.status(500).json({ ok: false, error: e.message });
   }
 });
@@ -167,7 +123,6 @@ router.use(async (_req, res, next) => {
     await ensureErroresSchema();
     next();
   } catch (e) {
-    debugLog395de7('errores.js:schemaMiddleware', 'error migración', { error: e.message }, 'H1');
     console.error('[errores] schema migration:', e.message);
     res.status(500).json({ error: e.message });
   }
@@ -203,7 +158,6 @@ async function resolverEmbajador(empleadoId) {
 
 // ─── RUTAS ───────────────────────────────────────────────────────
 
-// GET /api/errores/embajadores
 router.get('/embajadores', auth, async (_req, res) => {
   try {
     const rows = await asistAll(
@@ -219,7 +173,6 @@ router.get('/embajadores', auth, async (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/errores/stats
 router.get('/stats', auth, async (req, res) => {
   try {
     const mes = new Date().toISOString().slice(0,7);
@@ -234,7 +187,6 @@ router.get('/stats', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// GET /api/errores?desde=&hasta=&nombre=&seccion=&resuelto=
 router.get('/', auth, async (req, res) => {
   try {
     const { desde, hasta, nombre, seccion, resuelto } = req.query;
@@ -251,19 +203,8 @@ router.get('/', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// POST /api/errores
 router.post('/', auth, async (req, res) => {
   try {
-    await ensureErroresSchema();
-    const colsBefore = await getErroresColumnNames();
-    // #region agent log
-    debugLog395de7('errores.js:POST', 'pre-insert schema', {
-      empleado_id: req.body?.empleado_id,
-      hasParaTodos: colsBefore.includes('para_todos'),
-      columns: colsBefore
-    }, 'H2');
-    // #endregion
-
     const { fecha, empleado_id, seccion='', descripcion, solucion='' } = req.body;
     if (!fecha || !descripcion)
       return res.status(400).json({ error: 'Campos requeridos: fecha, embajador, descripcion' });
@@ -289,14 +230,10 @@ router.post('/', auth, async (req, res) => {
     }
     res.json({ ok: true, id: r.lastID });
   } catch(e) {
-    // #region agent log
-    debugLog395de7('errores.js:POST', 'error insert', { error: e.message }, 'H2');
-    // #endregion
     res.status(400).json({ error: e.message });
   }
 });
 
-// PUT /api/errores/:id
 router.put('/:id', auth, async (req, res) => {
   try {
     const { fecha, empleado_id, seccion, descripcion, solucion, resuelto } = req.body;
@@ -305,9 +242,21 @@ router.put('/:id', auth, async (req, res) => {
     if (!empleado_id)
       return res.status(400).json({ error: 'Embajador requerido' });
 
-    if (esParaTodos(empleado_id)) {
+    const actual = await get(
+      'SELECT COALESCE(para_todos, 0) AS para_todos FROM errores WHERE id=?',
+      [req.params.id]
+    );
+    if (!actual) return res.status(404).json({ error: 'Error no encontrado' });
+
+    const seraTodos = esParaTodos(empleado_id);
+    const eraTodos = actual.para_todos === 1;
+    if (seraTodos !== eraTodos) {
+      await run('DELETE FROM error_vistos WHERE error_id=?', [req.params.id]);
+    }
+
+    if (seraTodos) {
       await run(
-        `UPDATE errores SET fecha=?, empleado_id=NULL, nombre=?, seccion=?, descripcion=?, solucion=?, resuelto=?, para_todos=1
+        `UPDATE errores SET fecha=?, empleado_id=NULL, nombre=?, seccion=?, descripcion=?, solucion=?, resuelto=?, para_todos=1, notificado_salida=0
          WHERE id=?`,
         [
           fecha,
@@ -322,7 +271,7 @@ router.put('/:id', auth, async (req, res) => {
     } else {
       const embajador = await resolverEmbajador(empleado_id);
       await run(
-        `UPDATE errores SET fecha=?, empleado_id=?, nombre=?, seccion=?, descripcion=?, solucion=?, resuelto=?, para_todos=0
+        `UPDATE errores SET fecha=?, empleado_id=?, nombre=?, seccion=?, descripcion=?, solucion=?, resuelto=?, para_todos=0, notificado_salida=0
          WHERE id=?`,
         [
           fecha,
@@ -340,7 +289,6 @@ router.put('/:id', auth, async (req, res) => {
   } catch(e) { res.status(400).json({ error: e.message }); }
 });
 
-// PATCH /api/errores/:id/resolver  (marcar como resuelto/pendiente)
 router.patch('/:id/resolver', auth, async (req, res) => {
   try {
     const { resuelto, solucion='' } = req.body;
@@ -350,7 +298,6 @@ router.patch('/:id/resolver', auth, async (req, res) => {
   } catch(e) { res.status(500).json({ error: e.message }); }
 });
 
-// DELETE /api/errores/:id
 router.delete('/:id', auth, async (req, res) => {
   try {
     await run('DELETE FROM error_vistos WHERE error_id=?', [req.params.id]);
