@@ -2,6 +2,7 @@ const express = require('express');
 const sqlite3 = require('sqlite3').verbose();
 const path    = require('path');
 const fs      = require('fs');
+const { execSync } = require('child_process');
 
 const router = express.Router();
 
@@ -22,6 +23,20 @@ function debugLog395de7(location, message, data, hypothesisId) {
   }).catch(() => {});
   // #endregion
 }
+
+// Migración bloqueante al cargar el módulo (evita race de db.serialize en deploys viejos)
+(function runSyncMigrationOnLoad() {
+  const script = path.join(__dirname, '..', 'migrate_errores_para_todos.js');
+  if (!fs.existsSync(script)) return;
+  try {
+    execSync(`node "${script}"`, { cwd: path.join(__dirname, '..'), stdio: 'pipe', timeout: 30000 });
+    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración sync OK', { script }, 'H6');
+  } catch (e) {
+    const detail = e.stderr?.toString?.() || e.stdout?.toString?.() || e.message;
+    debugLog395de7('errores.js:runSyncMigrationOnLoad', 'migración sync falló', { script, detail }, 'H6');
+    console.error('[errores] migración sync al cargar:', detail);
+  }
+})();
 
 const db = new sqlite3.Database(DB_PATH, err => {
   if (err) { console.error('✗ errores.db error:', err.message); return; }
