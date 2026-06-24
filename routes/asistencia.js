@@ -2,11 +2,10 @@ const express    = require('express');
 const sqlite3    = require('sqlite3').verbose();
 const path       = require('path');
 const multer     = require('multer');
-const cron       = require('node-cron');
-const nodemailer = require('nodemailer');
 const { DateTime } = require('luxon');
 const fs         = require('fs');
 const router     = express.Router();
+const correoProgramado = require('../services/correoProgramado');
 
 // ── Config ───────────────────────────────────────────────────────
 const TZ = 'America/Lima';
@@ -77,9 +76,6 @@ const PINES_CATALOGO = [
   }
 ];
 const FOTOS_ASIST_DIR = path.join(__dirname, '..', 'uploads', 'fotos_asistencia');
-const RESPALDO_DESTINO = 'beluchicharroneria@gmail.com';
-const RESPALDO_HORA = '15:00';
-const RESPALDO_DB_FILES = ['asistencia.db', 'compras.db', 'contabilidad.db', 'errores.db', 'movimientos.db'];
 fs.mkdirSync(FOTOS_ASIST_DIR, { recursive: true });
 
 // ── DB ───────────────────────────────────────────────────────────
@@ -159,7 +155,11 @@ async function ensureConfigSchema() {
       email_password VARCHAR(200) DEFAULT '',
       email_activo BOOLEAN DEFAULT 0,
       backup_diario_activo BOOLEAN DEFAULT 0,
-      backup_diario_ultimo_envio VARCHAR(10) DEFAULT ''
+      backup_diario_ultimo_envio VARCHAR(10) DEFAULT '',
+      correo_asistencia_db_ultimo VARCHAR(10) DEFAULT '',
+      correo_respaldo_5_ultimo VARCHAR(10) DEFAULT '',
+      correo_respaldo_5_pendiente VARCHAR(10) DEFAULT '',
+      correo_quincena_pdf_ultimo VARCHAR(20) DEFAULT ''
     )`);
 
     const cols = await all(`PRAGMA table_info(configuracion)`);
@@ -170,6 +170,18 @@ async function ensureConfigSchema() {
     }
     if (!names.has('backup_diario_ultimo_envio')) {
       await safeAddColumn(`ALTER TABLE configuracion ADD COLUMN backup_diario_ultimo_envio VARCHAR(10) DEFAULT ''`);
+    }
+    if (!names.has('correo_asistencia_db_ultimo')) {
+      await safeAddColumn(`ALTER TABLE configuracion ADD COLUMN correo_asistencia_db_ultimo VARCHAR(10) DEFAULT ''`);
+    }
+    if (!names.has('correo_respaldo_5_ultimo')) {
+      await safeAddColumn(`ALTER TABLE configuracion ADD COLUMN correo_respaldo_5_ultimo VARCHAR(10) DEFAULT ''`);
+    }
+    if (!names.has('correo_respaldo_5_pendiente')) {
+      await safeAddColumn(`ALTER TABLE configuracion ADD COLUMN correo_respaldo_5_pendiente VARCHAR(10) DEFAULT ''`);
+    }
+    if (!names.has('correo_quincena_pdf_ultimo')) {
+      await safeAddColumn(`ALTER TABLE configuracion ADD COLUMN correo_quincena_pdf_ultimo VARCHAR(20) DEFAULT ''`);
     }
     if (!names.has('valor_dia')) {
       await safeAddColumn(`ALTER TABLE configuracion ADD COLUMN valor_dia FLOAT DEFAULT NULL`);
@@ -345,80 +357,63 @@ function embajadorBuscarPayload(emp, estado) {
   };
 }
 
-function getRespaldoAdjuntos() {
-  const faltantes = [];
-  const attachments = RESPALDO_DB_FILES.flatMap(filename => {
-    const filePath = path.join(__dirname, '..', 'data', filename);
-    if (!fs.existsSync(filePath)) {
-      faltantes.push(filename);
-      return [];
-    }
-    return [{ filename, path: filePath }];
-  });
-  return { attachments, faltantes };
-}
-
 function normalizeEmailPassword(value) {
   return String(value || '').replace(/\s+/g, '').trim();
 }
 
-function formatSMTPError(error) {
-  const message = String(error?.message || '');
-  if (/Application-specific password required|InvalidSecondFactor|534-5\.7\.9|535-5\.7\.8/i.test(message)) {
-    return 'Gmail rechazó el acceso. Usa una contraseña de aplicación de 16 caracteres, sin espacios, y verifica que la cuenta tenga activada la verificación en dos pasos.';
-  }
-  return message || 'Error enviando correo.';
-}
+async function buildBoletaPayload(empId, desde, hasta) {
+  const cfg = await get('SELECT * FROM configuracion WHERE id=1') || {};
+  const valores = getValoresSalariales(cfg);
+  const descTardanza = +cfg.descuento_tardanza || 2;
 
-function createMailTransport(cfg) {
-  if (!cfg?.email_activo) throw new Error('Email desactivado en Configuración.');
-  if (!cfg?.email_usuario || !cfg?.email_password) throw new Error('Faltan credenciales SMTP.');
+  const emp = await get('SELECT * FROM empleados WHERE id=?', [+empId]);
+  if (!emp) return null;
 
-  return nodemailer.createTransport({
-    host: cfg.email_smtp,
-    port: +cfg.email_puerto,
-    secure: +cfg.email_puerto === 465,
-    auth: { user: cfg.email_usuario, pass: normalizeEmailPassword(cfg.email_password) }
-  });
-}
+  const periodoSolicitado = { desde, hasta };
+  const periodoEmp = periodoConCortePorBaja(periodoSolicitado, emp);
+  if (periodoEmp.hasta < periodoEmp.desde) return null;
 
-async function enviarCorreoRespaldo({ prueba = false } = {}) {
-  await ensureConfigSchema();
-  const cfg = await get('SELECT * FROM configuracion WHERE id=1');
+  const ajuste = await get(
+    'SELECT * FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
+    [+empId, desde, hasta]
+  );
+  const regs = await all(
+    'SELECT * FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? ORDER BY fecha',
+    [+empId, periodoEmp.desde, periodoEmp.hasta]
+  );
+  const desdeDT = DateTime.fromISO(periodoEmp.desde, { zone: TZ });
+  const hastaDT = DateTime.fromISO(periodoEmp.hasta, { zone: TZ });
+  const ctxDesde = desdeDT.minus({ days: weekday(desdeDT) }).toISODate();
+  const ctxHasta = hastaDT.plus({ days: 6 - weekday(hastaDT) }).toISODate();
+  const regsContext = await all(
+    'SELECT * FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL ORDER BY fecha',
+    [+empId, ctxDesde, ctxHasta]
+  );
+  const resumen = calcularResumenSueldo({ emp, regs, ajuste, periodo: periodoEmp, cfg, regsContext });
 
-  if (!prueba && !cfg?.backup_diario_activo) {
-    return { skipped: true, reason: 'Respaldo diario desactivado.' };
-  }
-
-  const { attachments, faltantes } = getRespaldoAdjuntos();
-  if (faltantes.length) {
-    throw new Error(`Faltan archivos .db: ${faltantes.join(', ')}`);
-  }
-
-  const transporter = createMailTransport(cfg);
-  const fecha = hoyISO();
-  const subject = prueba
-    ? `BELÚ SYSTEM — Prueba respaldo DB ${fecha}`
-    : `BELÚ SYSTEM — Respaldo diario DB ${fecha}`;
-
-  await transporter.sendMail({
-    from: cfg.email_usuario,
-    to: RESPALDO_DESTINO,
-    subject,
-    text: prueba
-      ? 'Prueba de respaldo diario. Se adjuntan las 5 bases de datos del sistema.'
-      : 'Respaldo diario. Se adjuntan las 5 bases de datos del sistema.',
-    attachments
+  const registros = regs.map(r => {
+    const tarde = !r.hora_salida || esTardanza(r.fecha, r.hora_entrada);
+    return {
+      fecha: r.fecha,
+      hora_entrada: r.hora_entrada ? r.hora_entrada.slice(11, 16) : null,
+      hora_salida: r.hora_salida ? r.hora_salida.slice(11, 16) : null,
+      observacion: r.observacion || '',
+      tarde,
+      jornada: calcularJornadaPagable(r.fecha, r.hora_entrada, r.hora_salida)
+    };
   });
 
-  if (!prueba) {
-    await run('UPDATE configuracion SET backup_diario_ultimo_envio=? WHERE id=1', [fecha]);
-  }
-
-  await audit('configuracion', 1, prueba ? 'correo_respaldo_prueba' : 'correo_respaldo_diario',
-    `${prueba ? 'Prueba enviada' : 'Respaldo enviado'} a ${RESPALDO_DESTINO} con ${attachments.length} adjuntos.`);
-
-  return { ok: true, destino: RESPALDO_DESTINO, archivos: attachments.map(a => a.filename), fecha };
+  return {
+    emp,
+    ajuste,
+    registros,
+    valorDia: valores.valorDia,
+    valorHora: valores.valorHora,
+    descTardanza,
+    periodo: periodoEmp,
+    resumen,
+    baseHoraParcial: HORA_BASE_SUELDO_PARCIAL
+  };
 }
 
 function weekday(dt) { return (dt.weekday + 6) % 7; } // 0=Lun..6=Dom
@@ -1245,51 +1240,13 @@ router.get('/sueldos/boleta', async (req, res) => {
     const { emp_id, desde, hasta } = req.query;
     if (!emp_id || !desde || !hasta) return res.status(400).json({ error: 'Faltan parámetros.' });
 
-    const cfg = await get('SELECT * FROM configuracion WHERE id=1') || {};
-    const valores = getValoresSalariales(cfg);
-    const descTardanza = +cfg.descuento_tardanza || 2;
-
-    const emp    = await get('SELECT * FROM empleados WHERE id=?', [+emp_id]);
+    const emp = await get('SELECT id FROM empleados WHERE id=?', [+emp_id]);
     if (!emp) return res.status(404).json({ error: 'Embajador no encontrado.' });
-    const periodoSolicitado = { desde, hasta };
-    const periodoEmp = periodoConCortePorBaja(periodoSolicitado, emp);
-    if (periodoEmp.hasta < periodoEmp.desde) {
-      return res.status(400).json({ error: 'El embajador no tiene días laborables en el período solicitado.' });
-    }
-    const ajuste = await get('SELECT * FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?', [+emp_id, desde, hasta]);
-    const regs   = await all('SELECT * FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? ORDER BY fecha', [+emp_id, periodoEmp.desde, periodoEmp.hasta]);
-    const desdeDT = DateTime.fromISO(periodoEmp.desde, { zone: TZ });
-    const hastaDT = DateTime.fromISO(periodoEmp.hasta, { zone: TZ });
-    const ctxDesde = desdeDT.minus({ days: weekday(desdeDT) }).toISODate();
-    const ctxHasta = hastaDT.plus({ days: 6 - weekday(hastaDT) }).toISODate();
-    const regsContext = await all('SELECT * FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL ORDER BY fecha', [+emp_id, ctxDesde, ctxHasta]);
-    const resumen = calcularResumenSueldo({ emp, regs, ajuste, periodo: periodoEmp, cfg, regsContext });
 
-    // calcular tardanzas por registro
-    const registros = regs.map(r => {
-      const tarde = !r.hora_salida || esTardanza(r.fecha, r.hora_entrada);
-      return {
-        fecha:        r.fecha,
-        hora_entrada: r.hora_entrada ? r.hora_entrada.slice(11, 16) : null,
-        hora_salida:  r.hora_salida  ? r.hora_salida.slice(11, 16)  : null,
-        observacion:  r.observacion  || '',
-        tarde,
-        jornada: calcularJornadaPagable(r.fecha, r.hora_entrada, r.hora_salida)
-      };
-    });
+    const payload = await buildBoletaPayload(+emp_id, desde, hasta);
+    if (!payload) return res.status(400).json({ error: 'El embajador no tiene días laborables en el período solicitado.' });
 
-    res.json({
-      ok: true,
-      emp,
-      ajuste,
-      registros,
-      valorDia: valores.valorDia,
-      valorHora: valores.valorHora,
-      descTardanza,
-      periodo: periodoEmp,
-      resumen,
-      baseHoraParcial: HORA_BASE_SUELDO_PARCIAL
-    });
+    res.json({ ok: true, ...payload });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -1375,52 +1332,6 @@ router.post('/config', authAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-// ════════════════ EMAIL QUINCENA ════════════════
-
-router.post('/correo/quincena', authAdmin, async (req, res) => {
-  try {
-    await ensureConfigSchema();
-    const { anio, mes, quincena } = req.body;
-    const periodo = periodoParams(anio, mes, quincena);
-    const cfg     = await get('SELECT * FROM configuracion WHERE id=1');
-
-    if (!cfg?.email_activo)    return res.status(400).json({ error: 'Email desactivado en Configuración.' });
-    if (!cfg?.email_usuario)   return res.status(400).json({ error: 'Faltan credenciales SMTP.' });
-
-    const transporter = nodemailer.createTransport({
-      host: cfg.email_smtp, port: +cfg.email_puerto,
-      secure: +cfg.email_puerto === 465,
-      auth: { user: cfg.email_usuario, pass: normalizeEmailPassword(cfg.email_password) }
-    });
-
-    const empleados = await all(`SELECT * FROM empleados WHERE activo=1 AND email IS NOT NULL AND TRIM(email) != ''`);
-    let enviados = 0; const errores = [];
-
-    for (const emp of empleados) {
-      try {
-        await transporter.sendMail({
-          from: cfg.email_usuario, to: emp.email,
-          subject: `BELÚ — Asistencia ${periodo.desde} al ${periodo.hasta}`,
-          html: `<p>Hola <strong>${emp.nombre} ${emp.apellido}</strong>,<br>
-                 Adjunto tu resumen de asistencia del período <strong>${periodo.desde}</strong> al <strong>${periodo.hasta}</strong>.<br><br>
-                 BELÚ Chicharronería.</p>`
-        });
-        enviados++;
-      } catch (er) { errores.push(`${emp.nombre} ${emp.apellido}: ${er.message}`); }
-    }
-    res.json({ ok: true, enviados, errores });
-  } catch (e) { res.status(500).json({ error: formatSMTPError(e) }); }
-});
-
-router.post('/correo/respaldo/prueba', authAdmin, async (_req, res) => {
-  try {
-    const result = await enviarCorreoRespaldo({ prueba: true });
-    res.json({ ok: true, ...result });
-  } catch (e) {
-    res.status(500).json({ error: formatSMTPError(e) });
-  }
-});
-
 // ════════════════ LIMPIEZA DE FOTOS ASISTENCIA ════════════════
 // Día 18: elimina fotos del 1 al 15 del mes actual
 // Día 3: elimina fotos del 16 al último día del mes anterior
@@ -1462,76 +1373,20 @@ function cleanupAsistPhotos() {
 cleanupAsistPhotos();
 setInterval(cleanupAsistPhotos, 60 * 60 * 1000);
 
-async function ejecutarRespaldoConReintentos(fn) {
-  const MAX = 3;
-  for (let i = 1; i <= MAX; i++) {
-    try {
-      await fn();
-      return;
-    } catch (e) {
-      console.error(`  ✗ Respaldo intento ${i}/${MAX}: ${e.message}`);
-      try { await audit('configuracion', 1, 'correo_respaldo_error', `Intento ${i}/${MAX}: ${e.message}`); } catch (_) {}
-      if (i < MAX) await new Promise(r => setTimeout(r, 5 * 60 * 1000));
-    }
-  }
-}
-
-// Envío principal a las 15:00
-async function intentarRespaldoDiario() {
-  await ensureConfigSchema();
-  const cfg = await get('SELECT * FROM configuracion WHERE id=1');
-  if (!cfg?.backup_diario_activo || !cfg?.email_activo) return;
-  if (cfg.backup_diario_ultimo_envio === hoyISO()) return;
-  const result = await enviarCorreoRespaldo();
-  if (!result?.skipped) console.log(`  ✓ Respaldo diario enviado a ${result.destino}`);
-}
-
-// Recuperación al día siguiente a las 7:10 si no se envió ayer
-async function intentarRecuperacionBackup() {
-  await ensureConfigSchema();
-  const cfg = await get('SELECT * FROM configuracion WHERE id=1');
-  if (!cfg?.backup_diario_activo || !cfg?.email_activo) return;
-  if ((cfg.backup_diario_ultimo_envio || '') >= ayerISO()) return; // ayer o hoy ya enviado
-  const result = await enviarCorreoRespaldo();
-  if (!result?.skipped) console.log(`  ✓ Respaldo de recuperación enviado a ${result.destino}`);
-}
-
-// Cron principal: 15:00 hora Lima
-cron.schedule('0 15 * * *', () => ejecutarRespaldoConReintentos(intentarRespaldoDiario), { timezone: TZ });
-
-// Reintento suave el mismo día (si a las 15:00 no se pudo por red/SMTP temporal)
-// No duplica envíos: intentarRespaldoDiario corta si ya se envió hoy.
-cron.schedule('*/30 15-23 * * *', () => ejecutarRespaldoConReintentos(intentarRespaldoDiario), { timezone: TZ });
-
-// Cron de recuperación: 7:10 AM hora Lima (por si la máquina estuvo apagada ayer a las 15:00)
-cron.schedule('10 7 * * *', () => ejecutarRespaldoConReintentos(intentarRecuperacionBackup), { timezone: TZ });
-
-// Catch-up al iniciar: cubre casos donde ambos crons se perdieron por reinicio
-setTimeout(async () => {
-  try {
-    await ensureConfigSchema();
-    const cfg = await get('SELECT * FROM configuracion WHERE id=1');
-    if (!cfg?.backup_diario_activo || !cfg?.email_activo) return;
-    const ahora   = nowLima();
-    const hoy     = hoyISO();
-    const ayer    = ayerISO();
-    const ultimo  = cfg.backup_diario_ultimo_envio || '';
-    if (ultimo === hoy) return;
-
-    const paso1500 = ahora.hour > 15 || (ahora.hour === 15 && ahora.minute >= 0);
-
-    if (paso1500) {
-      // Pasaron las 15:00 y hoy no se envió → enviar ahora
-      console.log('  ⟳ Respaldo pendiente al iniciar (después de las 15:00), enviando...');
-      await ejecutarRespaldoConReintentos(intentarRespaldoDiario);
-    } else if (ultimo < ayer) {
-      // Antes de las 15:00 pero el backup de ayer no se envió → recuperar de inmediato al iniciar
-      console.log('  ⟳ Respaldo atrasado detectado al iniciar (recuperación), enviando...');
-      await ejecutarRespaldoConReintentos(intentarRecuperacionBackup);
-    }
-  } catch (_) {}
-}, 2000);
-
-console.log(`  ✓ Respaldo diario: ${RESPALDO_HORA} | Recuperación: 7:10 AM (${TZ})`);
+correoProgramado.init({
+  router,
+  authAdmin,
+  TZ,
+  get,
+  run,
+  all,
+  audit,
+  ensureConfigSchema,
+  hoyISO,
+  ayerISO,
+  nowLima,
+  periodoParams,
+  buildBoletaPayload
+});
 
 module.exports = router;

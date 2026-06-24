@@ -536,14 +536,22 @@
 
     <!-- Correo SMTP -->
     <div class="form-card" style="margin-bottom:18px">
-      <h3 style="margin-bottom:14px;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">📧 Notificaciones por Correo</h3>
+      <h3 style="margin-bottom:14px;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Notificaciones por Correo</h3>
+      <p style="font-size:.82rem;color:var(--text-muted);margin-bottom:12px">Todos los envíos van a <strong>beluchicharroneria@gmail.com</strong>.</p>
       <div class="form-group">
         <label><input type="checkbox" id="cfgEmailActivo" style="width:auto;margin-right:8px"> Envío automático activado</label>
-        <small style="display:block;color:var(--text-muted);font-size:.75rem;margin-top:4px">Resumen quincenal automático: día 15 y día 2 a las 7:00 PM.</small>
+        <small style="display:block;color:var(--text-muted);font-size:.75rem;margin-top:4px">Habilita el cronograma de correos (requiere SMTP configurado).</small>
       </div>
       <div class="form-group" style="margin-top:10px">
-        <label><input type="checkbox" id="cfgBackupDiarioActivo" style="width:auto;margin-right:8px"> Respaldo diario de bases de datos activado</label>
-        <small style="display:block;color:var(--text-muted);font-size:.75rem;margin-top:4px">Todos los días a las 6:00 PM se enviarán 5 archivos .db a beluchicharroneria@gmail.com.</small>
+        <label><input type="checkbox" id="cfgBackupDiarioActivo" style="width:auto;margin-right:8px"> Respaldo completo diario (15:20)</label>
+        <small style="display:block;color:var(--text-muted);font-size:.75rem;margin-top:4px">Un solo correo con las 5 bases de datos copiadas a las 3:20 PM.</small>
+      </div>
+      <div style="margin:14px 0;padding:12px;background:var(--bg-card-alt, rgba(0,0,0,.15));border-radius:8px;font-size:.8rem;line-height:1.7;color:var(--text-muted)">
+        <strong style="color:var(--text);display:block;margin-bottom:6px">Cronograma</strong>
+        <div>07:20 — <code>asistencia.db</code></div>
+        <div>15:20 — 5 archivos .db (asistencia, compras, contabilidad, errores, movimientos)</div>
+        <div>07:00 día siguiente — recuperación si falló el envío de las 15:20</div>
+        <div>17:00 días 15 y último del mes — boletas PDF quincenales (todos los embajadores activos)</div>
       </div>
       <div class="form-group-row" style="margin-top:10px">
         <div class="form-group"><label>Servidor SMTP</label><input type="text" id="cfgSmtp" placeholder="smtp.gmail.com"></div>
@@ -555,37 +563,31 @@
     </div>
 
     <!-- Guardar -->
-    <button class="btn btn-primary btn-block" onclick="asistGuardarConfig()">💾 Guardar Configuración</button>
+    <button class="btn btn-primary btn-block" onclick="asistGuardarConfig()">Guardar Configuración</button>
     <p id="cfgMsg" style="text-align:center;margin-top:12px;font-size:.88em;color:var(--success)"></p>
 
-    <!-- Acciones de correo -->
+    <!-- Pruebas de correo -->
     <div class="form-card" style="margin-top:22px">
-      <h3 style="margin-bottom:14px;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">📤 Enviar Resumen Quincenal</h3>
-      <div class="filter-bar" style="flex-wrap:wrap;margin-bottom:8px">
-        <select id="cfgQAnio" style="max-width:90px"></select>
-        <select id="cfgQMes">
+      <h3 style="margin-bottom:14px;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">Pruebas de envío</h3>
+      <div class="filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="asistProbarCorreo('asistencia-db')">Probar asistencia.db</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="asistProbarCorreo('respaldo-5')">Probar 5 archivos</button>
+      </div>
+      <div class="filter-bar" style="flex-wrap:wrap;gap:8px;margin-bottom:8px">
+        <select id="cfgPruebaAnio" style="max-width:90px"></select>
+        <select id="cfgPruebaMes">
           <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option>
           <option value="4">Abril</option><option value="5">Mayo</option><option value="6">Junio</option>
           <option value="7">Julio</option><option value="8">Agosto</option><option value="9">Septiembre</option>
           <option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
         </select>
-        <select id="cfgQQuincena">
+        <select id="cfgPruebaQuincena">
           <option value="1">1ra (1–15)</option>
           <option value="2">2da (16–fin)</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="asistEnviarCorreos()">📧 Enviar ahora</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="asistProbarCorreo('quincena-pdf')">Probar PDF quincena</button>
       </div>
-      <small style="color:var(--text-muted);font-size:.78rem">Se enviarán correos a todos los embajadores con correo registrado.</small>
       <p id="cfgCorreoMsg" style="margin-top:10px;font-size:.85rem"></p>
-    </div>
-
-    <div class="form-card" style="margin-top:22px">
-      <h3 style="margin-bottom:14px;font-size:.9rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)">🗄️ Prueba de Respaldo Diario</h3>
-      <div class="filter-bar" style="flex-wrap:wrap;margin-bottom:8px">
-        <button class="btn btn-primary btn-sm" onclick="asistEnviarRespaldoPrueba()">📎 Enviar prueba</button>
-      </div>
-      <small style="color:var(--text-muted);font-size:.78rem">Envía a beluchicharroneria@gmail.com únicamente los 5 archivos .db de la carpeta data.</small>
-      <p id="cfgBackupMsg" style="margin-top:10px;font-size:.85rem"></p>
     </div>
 
   </div>

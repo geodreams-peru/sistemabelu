@@ -1794,13 +1794,12 @@ async function asistCargarConfig() {
     document.getElementById('cfgValorHora').dataset.manual = Math.abs((parseFloat(cfg.valor_hora) || valorHoraAuto) - valorHoraAuto) > 0.009 ? '1' : '0';
     cfgRecalcular();
     cfgActualizarResumen();
-    // Inicializar selects de correo quincenal
-    const anioSel = document.getElementById('cfgQAnio');
-    if (anioSel && !anioSel.options.length) {
+    const pruebaAnio = document.getElementById('cfgPruebaAnio');
+    if (pruebaAnio && !pruebaAnio.options.length) {
       const y = new Date().getFullYear();
-      for (let i = y; i >= y - 2; i--) anioSel.innerHTML += `<option value="${i}">${i}</option>`;
-      document.getElementById('cfgQMes').value     = new Date().getMonth() + 1;
-      document.getElementById('cfgQQuincena').value = new Date().getDate() <= 15 ? '1' : '2';
+      for (let i = y; i >= y - 2; i--) pruebaAnio.innerHTML += `<option value="${i}">${i}</option>`;
+      document.getElementById('cfgPruebaMes').value = new Date().getMonth() + 1;
+      document.getElementById('cfgPruebaQuincena').value = new Date().getDate() <= 15 ? '1' : '2';
     }
   } catch { /* silencioso */ }
 }
@@ -1854,41 +1853,29 @@ function cfgActualizarResumen() {
   if (rDesc) rDesc.textContent = desc.toFixed(2);
 }
 
-async function asistEnviarCorreos() {
-  const anio     = document.getElementById('cfgQAnio')?.value;
-  const mes      = document.getElementById('cfgQMes')?.value;
-  const quincena = document.getElementById('cfgQQuincena')?.value;
-  const msgEl    = document.getElementById('cfgCorreoMsg');
+async function asistProbarCorreo(tipo) {
+  const msgEl = document.getElementById('cfgCorreoMsg');
   if (msgEl) msgEl.textContent = 'Enviando...';
   try {
-    const res  = await fetch(`${AAPI}/correo/quincena`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ anio: +anio, mes: +mes, quincena: +quincena })
-    });
-    const data = await res.json();
-    if (data.ok) {
-      if (msgEl) msgEl.innerHTML = `<span style="color:var(--success)">✓ Enviados: ${data.enviados}</span>${data.errores?.length ? ` | Errores: ${data.errores.length}` : ''}`;
-    } else {
-      if (msgEl) msgEl.innerHTML = `<span style="color:var(--danger)">✗ ${data.error}</span>`;
+    let url = `${AAPI}/correo/probar/${tipo}`;
+    let opts = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
+    if (tipo === 'quincena-pdf') {
+      opts.body = JSON.stringify({
+        anio: +document.getElementById('cfgPruebaAnio')?.value,
+        mes: +document.getElementById('cfgPruebaMes')?.value,
+        quincena: +document.getElementById('cfgPruebaQuincena')?.value
+      });
     }
-  } catch { if (msgEl) msgEl.innerHTML = `<span style="color:var(--danger)">✗ Error de red</span>`; }
-}
-
-async function asistEnviarRespaldoPrueba() {
-  const msgEl = document.getElementById('cfgBackupMsg');
-  if (msgEl) msgEl.textContent = 'Enviando prueba...';
-  try {
-    const res = await fetch(`${AAPI}/correo/respaldo/prueba`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }
-    });
+    const res = await fetch(url, opts);
     const data = await res.json();
     if (data.ok) {
-      if (msgEl) msgEl.innerHTML = `<span style="color:var(--success)">✓ Prueba enviada a ${data.destino} con ${data.archivos?.length || 0} adjuntos</span>`;
+      const det = data.pdfs ? `${data.pdfs} PDF(s)` : (data.archivos?.length ? data.archivos.join(', ') : 'OK');
+      if (msgEl) msgEl.innerHTML = `<span style="color:var(--success)">Enviado a ${data.destino || 'beluchicharroneria@gmail.com'} — ${det}</span>`;
     } else {
-      if (msgEl) msgEl.innerHTML = `<span style="color:var(--danger)">✗ ${data.error}</span>`;
+      if (msgEl) msgEl.innerHTML = `<span style="color:var(--danger)">${data.error || 'Error'}</span>`;
     }
   } catch {
-    if (msgEl) msgEl.innerHTML = `<span style="color:var(--danger)">✗ Error de red</span>`;
+    if (msgEl) msgEl.innerHTML = '<span style="color:var(--danger)">Error de red</span>';
   }
 }
 
