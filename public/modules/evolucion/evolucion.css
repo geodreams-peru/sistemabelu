@@ -318,3 +318,18 @@
   .evo-detail-top { flex-direction: column; align-items: stretch; }
   .evo-progress-pct { text-align: left; }
 }
+
+.evo-matriz-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-light);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: .8rem;
+  margin-top: 4px;
+  outline: none;
+  cursor: pointer;
+}
+.evo-matriz-select:focus {
+  border-color: var(--primary);
+}

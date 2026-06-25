@@ -158,7 +158,23 @@ router.get('/embajador/:id', async (req, res) => {
     const e = await getEmbajadorBasico(id);
     if (!e) return res.status(404).json({ ok: false, error: 'Embajador no encontrado' });
 
-    const matriz = catalogo.matrizPorCargo(e.cargo);
+    const cleanCargos = String(e.cargo || '').split(',').map(c => c.trim()).filter(Boolean);
+    const matricesDisponibles = [];
+    for (const c of cleanCargos) {
+      const mId = catalogo.CARGO_MATRIZ[c];
+      if (mId && catalogo.MATRICES[mId]) {
+        if (!matricesDisponibles.some(m => m.id === mId)) {
+          matricesDisponibles.push({ id: mId, titulo: catalogo.MATRICES[mId].titulo, cargo: c });
+        }
+      }
+    }
+
+    let matrizId = req.query.matrizId || (matricesDisponibles[0] ? matricesDisponibles[0].id : null);
+    let matriz = null;
+    if (matrizId) {
+      matriz = catalogo.matrizPorId(matrizId);
+    }
+
     if (!matriz) {
       return res.json({
         ok: true,
@@ -166,7 +182,9 @@ router.get('/embajador/:id', async (req, res) => {
         matriz: null,
         progreso: null,
         alarmas: [],
-        mensaje: 'Sin matriz de evolución para este cargo'
+        mensaje: 'Sin matriz de evolución para este cargo',
+        matricesDisponibles,
+        matrizIdSelected: null
       });
     }
 
@@ -197,7 +215,9 @@ router.get('/embajador/:id', async (req, res) => {
       matriz: { id: matriz.id, titulo: matriz.titulo, categorias },
       progreso,
       alarmas,
-      umbrales: catalogo.UMBRALES
+      umbrales: catalogo.UMBRALES,
+      matricesDisponibles,
+      matrizIdSelected: matrizId
     });
   } catch (err) {
     console.error('[evolucion] GET /embajador/:id', err.message);
@@ -217,10 +237,17 @@ router.patch('/embajador/:id/item', async (req, res) => {
     const e = await getEmbajadorBasico(id);
     if (!e) return res.status(404).json({ ok: false, error: 'Embajador no encontrado' });
 
-    const matriz = catalogo.matrizPorCargo(e.cargo);
-    if (!matriz) return res.status(400).json({ ok: false, error: 'Sin matriz para este cargo' });
-
     const key = String(item_key).trim();
+    const keyMatrizId = key.split('.')[0];
+    const matriz = catalogo.matrizPorId(keyMatrizId);
+    if (!matriz) return res.status(400).json({ ok: false, error: 'Matriz no encontrada para este ítem' });
+
+    const cleanCargos = String(e.cargo || '').split(',').map(c => c.trim()).filter(Boolean);
+    const hasCargoPermission = cleanCargos.some(c => catalogo.CARGO_MATRIZ[c] === keyMatrizId);
+    if (!hasCargoPermission) {
+      return res.status(400).json({ ok: false, error: 'El embajador no posee el cargo correspondiente a esta matriz.' });
+    }
+
     if (!catalogo.isValidItemKey(matriz.id, key)) {
       return res.status(400).json({ ok: false, error: 'Ítem no válido para esta matriz' });
     }

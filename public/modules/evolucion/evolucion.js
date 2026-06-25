@@ -73,9 +73,17 @@
 
   function evoPoblarFiltroCargo() {
     const sel = document.getElementById('evoFiltroCargo');
-    const cargos = [...new Set(resumenData.map(e => e.cargo).filter(Boolean))].sort();
+    const allCargos = [];
+    resumenData.forEach(e => {
+      if (e.cargo) {
+        String(e.cargo).split(',').map(c => c.trim()).forEach(c => {
+          if (c && !allCargos.includes(c)) allCargos.push(c);
+        });
+      }
+    });
+    allCargos.sort();
     sel.innerHTML = '<option value="">Todos los cargos</option>' +
-      cargos.map(c => `<option value="${c}">${c}</option>`).join('');
+      allCargos.map(c => `<option value="${c}">${c}</option>`).join('');
   }
 
   function evoPoblarSelect() {
@@ -98,7 +106,10 @@
     const grid = document.getElementById('evoGridResumen');
 
     let lista = resumenData.filter(e => {
-      if (cargo && e.cargo !== cargo) return false;
+      if (cargo) {
+        const parts = String(e.cargo || '').split(',').map(c => c.trim());
+        if (!parts.includes(cargo)) return false;
+      }
       if (buscar && !e.nombre_completo.toLowerCase().includes(buscar)) return false;
       return true;
     });
@@ -164,6 +175,16 @@
       document.getElementById('evoDetNombre').textContent = e.nombre_completo;
       document.getElementById('evoDetCargo').textContent = e.cargo || '—';
 
+      const selMatriz = document.getElementById('evoDetSelMatriz');
+      if (data.matricesDisponibles && data.matricesDisponibles.length > 1) {
+        selMatriz.innerHTML = data.matricesDisponibles.map(m => 
+          `<option value="${m.id}" ${m.id === data.matrizIdSelected ? 'selected' : ''}>${m.titulo}</option>`
+        ).join('');
+        selMatriz.style.display = 'inline-block';
+      } else {
+        selMatriz.style.display = 'none';
+      }
+
       if (!data.matriz) {
         document.getElementById('evoDetProgressWrap').style.display = 'none';
         document.getElementById('evoMilestones').innerHTML = '';
@@ -179,6 +200,36 @@
       console.error('[evolucion] detalle', err);
       evoToast(err.message);
       cont.innerHTML = '<div class="evo-empty"><p>Error al cargar detalle.</p></div>';
+    }
+  }
+
+  async function evoCambiarMatriz() {
+    const id = document.getElementById('evoSelectEmbajador').value;
+    const matrizId = document.getElementById('evoDetSelMatriz').value;
+    if (!id || !matrizId) return;
+
+    const cont = document.getElementById('evoDetalleContenido');
+    cont.innerHTML = '<div class="evo-skeleton" style="height:200px"></div>';
+
+    try {
+      const data = await evoFetch(`${API}/embajador/${id}?matrizId=${matrizId}`);
+      detalleActual = data;
+
+      if (!data.matriz) {
+        document.getElementById('evoDetProgressWrap').style.display = 'none';
+        document.getElementById('evoMilestones').innerHTML = '';
+        cont.innerHTML = `<div class="evo-empty"><div class="evo-empty-icon">⚠️</div><p>Sin matriz seleccionada.</p></div>`;
+        return;
+      }
+
+      document.getElementById('evoDetProgressWrap').style.display = 'block';
+      evoActualizarProgresoUI(data.progreso);
+      evoRenderMilestones(data.progreso.porcentaje, data.alarmas || []);
+      evoRenderColumnas(data.matriz.categorias);
+    } catch (err) {
+      console.error('[evolucion] cambiar matriz', err);
+      evoToast(err.message);
+      cont.innerHTML = '<div class="evo-empty"><p>Error al cambiar matriz.</p></div>';
     }
   }
 
@@ -362,6 +413,7 @@
   window.evoFiltrarResumen = evoFiltrarResumen;
   window.evoAbrirDetalle = evoAbrirDetalle;
   window.evoCargarDetalle = evoCargarDetalle;
+  window.evoCambiarMatriz = evoCambiarMatriz;
   window.evoToggleItem = evoToggleItem;
   window.evoCerrarAlarma = evoCerrarAlarma;
 

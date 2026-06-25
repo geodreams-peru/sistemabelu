@@ -291,30 +291,59 @@
             </div>
             <div class="emp-ficha-row emp-ficha-row-2">
               <div class="emp-ficha-field">
-                <label for="empCargo">Cargo</label>
-                <select id="empCargo" class="emp-ficha-input">
-                  <option value="">-- Sin cargo --</option>
-                  <option>Mozo/Azafata</option>
-                  <option>Ayudante de cocina</option>
-                  <option>Planchero</option>
-                  <option>Cantor</option>
-                  <option>Armado</option>
-                  <option>Líquidos</option>
-                  <option>Caja</option>
-                  <option>Admin</option>
-                  <option>Part time/cocina</option>
-                  <option>Part time/salon</option>
-                </select>
-              </div>
-              <div class="emp-ficha-field">
                 <label for="empCelular">Celular</label>
                 <input type="text" id="empCelular" class="emp-ficha-input">
+              </div>
+              <div class="emp-ficha-field">
+                <label for="empEmail">Email</label>
+                <input type="email" id="empEmail" class="emp-ficha-input">
               </div>
             </div>
             <div class="emp-ficha-row">
               <div class="emp-ficha-field emp-ficha-field-full">
-                <label for="empEmail">Email</label>
-                <input type="email" id="empEmail" class="emp-ficha-input">
+                <label>Cargo(s) (Marcar varios si aplica)</label>
+                <div class="cargos-grid">
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Mozo/Azafata">
+                    <span>Mozo/Azafata</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Ayudante de cocina">
+                    <span>Ayudante de cocina</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Planchero">
+                    <span>Planchero</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Cantor">
+                    <span>Cantor</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Armado">
+                    <span>Armado</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Líquidos">
+                    <span>Líquidos</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Caja">
+                    <span>Caja</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Admin">
+                    <span>Admin</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Part time/cocina">
+                    <span>Part time/cocina</span>
+                  </label>
+                  <label class="cargo-checkbox-label">
+                    <input type="checkbox" class="emp-cargo-cb" value="Part time/salon">
+                    <span>Part time/salon</span>
+                  </label>
+                </div>
               </div>
             </div>
             <div class="emp-ficha-row emp-ficha-row-2">
@@ -979,6 +1008,39 @@
   accent-color: var(--primary);
   cursor: pointer;
 }
+.cargos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+  background: var(--bg-dark);
+  border: 1px solid var(--border);
+  padding: 14px;
+  border-radius: 12px;
+  margin-top: 5px;
+}
+.cargo-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-light);
+  user-select: none;
+  transition: color 0.2s ease, transform 0.1s ease;
+}
+.cargo-checkbox-label:hover {
+  color: var(--primary);
+}
+.cargo-checkbox-label:active {
+  transform: scale(0.98);
+}
+.cargo-checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
 .emp-ficha-divider {
   border: none;
   border-top: 2px solid var(--border);

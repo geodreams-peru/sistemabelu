@@ -835,7 +835,7 @@ function asistNuevoEmpleado() {
   document.getElementById('empId').value = '';
   ['empDocumento','empNombre','empApellido','empCelular','empEmail'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('empTipoDoc').value = 'DNI';
-  document.getElementById('empCargo').value   = '';
+  document.querySelectorAll('.emp-cargo-cb').forEach(cb => cb.checked = false);
   document.getElementById('empFechaIngreso').value = new Date().toISOString().split('T')[0];
   document.getElementById('empFechaNacimiento').value = '';
   document.getElementById('empOnp').checked   = false;
@@ -855,7 +855,12 @@ async function asistEditarEmpleado(id) {
   document.getElementById('empDocumento').value = e.documento;
   document.getElementById('empNombre').value    = e.nombre;
   document.getElementById('empApellido').value  = e.apellido;
-  document.getElementById('empCargo').value     = e.cargo || '';
+  
+  const selectedCargos = (e.cargo || '').split(',').map(s => s.trim()).filter(Boolean);
+  document.querySelectorAll('.emp-cargo-cb').forEach(cb => {
+    cb.checked = selectedCargos.includes(cb.value);
+  });
+
   document.getElementById('empCelular').value   = e.celular || '';
   document.getElementById('empEmail').value     = e.email || '';
   document.getElementById('empFechaIngreso').value = e.fecha_ingreso || '';
@@ -878,7 +883,10 @@ async function asistGuardarEmpleado() {
   formData.append('tipo_doc',    document.getElementById('empTipoDoc').value);
   formData.append('nombre',      document.getElementById('empNombre').value.trim());
   formData.append('apellido',    document.getElementById('empApellido').value.trim());
-  formData.append('cargo',       document.getElementById('empCargo').value);
+  
+  const selectedCargos = Array.from(document.querySelectorAll('.emp-cargo-cb:checked')).map(cb => cb.value);
+  formData.append('cargo',       selectedCargos.join(', '));
+
   formData.append('celular',     document.getElementById('empCelular').value);
   formData.append('email',       document.getElementById('empEmail').value);
   formData.append('fecha_ingreso', fechaIngreso);
