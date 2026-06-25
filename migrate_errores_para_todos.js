@@ -10,10 +10,11 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
+const { dbPath } = require('./lib/paths');
 
 const DB_PATH = process.argv[2]
   ? path.resolve(process.argv[2])
-  : path.join(__dirname, 'data', 'errores.db');
+  : dbPath('errores.db');
 
 function ensureDataDir() {
   const dir = path.dirname(DB_PATH);

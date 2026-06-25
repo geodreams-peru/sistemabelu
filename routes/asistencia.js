@@ -6,12 +6,13 @@ const { DateTime } = require('luxon');
 const fs         = require('fs');
 const router     = express.Router();
 const correoProgramado = require('../services/correoProgramado');
+const { dbPath, uploadsPath } = require('../lib/paths');
 
 // ── Config ───────────────────────────────────────────────────────
 const TZ = 'America/Lima';
-const DB_PATH    = path.join(__dirname, '..', 'data', 'asistencia.db');
-const ERRORES_DB_PATH = path.join(__dirname, '..', 'data', 'errores.db');
-const UPLOAD_DIR = path.join(__dirname, '..', 'uploads', 'fotos');
+const DB_PATH    = dbPath('asistencia.db');
+const ERRORES_DB_PATH = dbPath('errores.db');
+const UPLOAD_DIR = uploadsPath('fotos');
 const CARGOS     = ['Mozo/Azafata', 'Ayudante de cocina', 'Planchero', 'Cantor', 'Armado', 'Líquidos', 'Caja', 'Admin', 'Part time/cocina', 'Part time/salon'];
 const PINES_CATALOGO = [
   {
@@ -75,7 +76,7 @@ const PINES_CATALOGO = [
     premio: 'Bono en efectivo de 600 soles + Descuento de Gerente Master (50% en consumos x 10) + Pin Veterano'
   }
 ];
-const FOTOS_ASIST_DIR = path.join(__dirname, '..', 'uploads', 'fotos_asistencia');
+const FOTOS_ASIST_DIR = uploadsPath('fotos_asistencia');
 fs.mkdirSync(FOTOS_ASIST_DIR, { recursive: true });
 
 // ── DB ───────────────────────────────────────────────────────────

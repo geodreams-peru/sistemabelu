@@ -4,10 +4,11 @@ const path    = require('path');
 const fs      = require('fs');
 
 const router = express.Router();
+const { dbPath } = require('../lib/paths');
 
 // ─── BASE DE DATOS ───────────────────────────────────────────────
-const DB_PATH = path.join(__dirname, '../data/errores.db');
-const ASIST_DB_PATH = path.join(__dirname, '../data/asistencia.db');
+const DB_PATH = dbPath('errores.db');
+const ASIST_DB_PATH = dbPath('asistencia.db');
 const SCHEMA_VERSION = 2;
 
 const db = new sqlite3.Database(DB_PATH, err => {

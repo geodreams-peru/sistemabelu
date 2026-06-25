@@ -3,8 +3,10 @@ const sqlite3 = require('sqlite3').verbose();
 const path    = require('path');
 const router  = express.Router();
 
+const { dbPath } = require('../lib/paths');
+
 // ── DB propia del módulo ─────────────────────────────────────────
-const DB_PATH = path.join(__dirname, '..', 'data', 'movimientos.db');
+const DB_PATH = dbPath('movimientos.db');
 const db = new sqlite3.Database(DB_PATH, err => {
   if (err) { console.error('Movimientos DB error:', err.message); return; }
   console.log('  ✓ movimientos.db conectada');

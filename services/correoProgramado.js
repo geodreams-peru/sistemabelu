@@ -3,10 +3,10 @@ const fs = require('fs');
 const cron = require('node-cron');
 const nodemailer = require('nodemailer');
 const { generateBoletaPdf } = require('../lib/boletaPdf');
+const { DATA_DIR } = require('../lib/paths');
 
 const CORREO_DESTINO = 'beluchicharroneria@gmail.com';
 const DB_COMPLETO = ['asistencia.db', 'compras.db', 'contabilidad.db', 'errores.db', 'movimientos.db'];
-const DATA_DIR = path.join(__dirname, '..', 'data');
 const TMP_BASE = path.join(__dirname, '..', 'tmp', 'correo-backup');
 
 let deps = null;

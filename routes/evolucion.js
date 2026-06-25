@@ -3,9 +3,10 @@ const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const router = express.Router();
 const catalogo = require('../lib/evolucionCatalogo');
+const { dbPath } = require('../lib/paths');
 
-const DB_PATH = path.join(__dirname, '..', 'data', 'evolucion.db');
-const ASIS_DB_PATH = path.join(__dirname, '..', 'data', 'asistencia.db');
+const DB_PATH = dbPath('evolucion.db');
+const ASIS_DB_PATH = dbPath('asistencia.db');
 
 const db = new sqlite3.Database(DB_PATH, err => {
   if (err) { console.error('[evolucion] DB error:', err.message); return; }
@@ -14,7 +15,8 @@ const db = new sqlite3.Database(DB_PATH, err => {
 });
 
 const asisDb = new sqlite3.Database(ASIS_DB_PATH, err => {
-  if (err) console.error('[evolucion] asistencia.db aux error:', err.message);
+  if (err) console.error('[evolucion] asistencia.db aux error:', err.message, ASIS_DB_PATH);
+  else console.log('  ✓ evolucion → asistencia.db', ASIS_DB_PATH);
 });
 
 function run(sql, p = []) {
@@ -113,8 +115,12 @@ router.get('/catalogo/:matrizId', (req, res) => {
 router.get('/resumen', async (req, res) => {
   try {
     const empleados = await asisAll(
-      `SELECT id, nombre, apellido, cargo, foto, activo FROM empleados WHERE activo = 1 ORDER BY nombre, apellido`
+      `SELECT id, nombre, apellido, cargo, foto, activo
+       FROM empleados
+       WHERE COALESCE(activo, 1) = 1
+       ORDER BY nombre, apellido`
     );
+    console.log(`[evolucion] resumen: ${empleados.length} embajadores activos (${ASIS_DB_PATH})`);
     const resumen = [];
     for (const e of empleados) {
       const matriz = catalogo.matrizPorCargo(e.cargo);

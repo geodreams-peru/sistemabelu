@@ -4,8 +4,9 @@ const session = require('express-session');
 const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
+const { dbPath, ensureRuntimeDirs, logPaths, UPLOADS_DIR, DATA_DIR } = require('./lib/paths');
 
-const DEPLOY_VERSION = '2026-06-17-errores-v3';
+const DEPLOY_VERSION = '2026-06-25-data-dir-v1';
 
 function bootLog(location, message, data, hypothesisId = 'H503') {
   const entry = { sessionId: '61705f', hypothesisId, location, message, data, timestamp: Date.now() };
@@ -23,15 +24,8 @@ process.on('unhandledRejection', (reason) => {
   bootLog('server.js:unhandledRejection', String(reason), { reason: String(reason) }, 'H1-H4');
 });
 
-for (const dir of ['data', path.join('uploads', 'fotos'), path.join('uploads', 'fotos_asistencia')]) {
-  const full = path.join(__dirname, dir);
-  try {
-    fs.mkdirSync(full, { recursive: true });
-    bootLog('server.js:mkdir', 'directorio listo', { dir: full, exists: fs.existsSync(full) }, 'H2');
-  } catch (e) {
-    bootLog('server.js:mkdir', 'fallo creando directorio', { dir: full, error: e.message }, 'H2');
-  }
-}
+ensureRuntimeDirs();
+logPaths();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -41,7 +35,7 @@ if (!process.env.PORT) {
 bootLog('server.js:port', 'puerto de escucha', { PORT, envPort: process.env.PORT || null }, 'H3');
 const PUBLIC_DIR = path.join(__dirname, 'public');
 const INDEX_HTML = path.resolve(PUBLIC_DIR, 'index.html');
-const ERRORES_DB = path.join(__dirname, 'data', 'errores.db');
+const ERRORES_DB = dbPath('errores.db');
 
 function logPublicPaths(runId = 'startup') {
   let publicContents = null;
@@ -142,7 +136,7 @@ logPublicPaths();
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'belu_secret',
@@ -185,8 +179,8 @@ app.use('/api/errores',      erroresRoutes);
 app.use('/api/evolucion',    evolucionRoutes);
 
 app.get('/api/health', async (_req, res) => {
-  const dataDir = path.join(__dirname, 'data');
-  const uploadsDir = path.join(__dirname, 'uploads');
+  const dataDir = DATA_DIR;
+  const uploadsDir = UPLOADS_DIR;
   let dataFiles = null;
   let publicFiles = null;
   let erroresSchema = null;
@@ -209,7 +203,11 @@ app.get('/api/health', async (_req, res) => {
     publicDir: PUBLIC_DIR,
     indexHtml: INDEX_HTML,
     publicIndexExists: fs.existsSync(INDEX_HTML),
+    dataDir,
     dataDirExists: fs.existsSync(dataDir),
+    dataDirFromEnv: process.env.DATA_DIR || null,
+    uploadsDir,
+    uploadsDirFromEnv: process.env.UPLOADS_DIR || null,
     dataFiles,
     uploadsDirExists: fs.existsSync(uploadsDir),
     publicFiles,
@@ -229,6 +227,21 @@ app.get('*', (req, res) => {
   sendSpaFile(res, INDEX_HTML, req.path);
 });
 
+function logAsistenciaCount() {
+  const asisPath = dbPath('asistencia.db');
+  if (!fs.existsSync(asisPath)) {
+    console.warn(`  ⚠ asistencia.db no encontrada en ${asisPath} — configure DATA_DIR o restaure backup`);
+    return;
+  }
+  const db = new sqlite3.Database(asisPath, err => {
+    if (err) return;
+    db.get('SELECT COUNT(*) AS n FROM empleados WHERE COALESCE(activo,1)=1', [], (e, row) => {
+      if (!e && row) console.log(`  ✦ Embajadores activos en BD: ${row.n} (${asisPath})`);
+      db.close();
+    });
+  });
+}
+
 // ─── INICIO ─────────────────────────────────────────────────────
 migrateErroresDbAtBoot()
   .then(schema => {
@@ -241,6 +254,7 @@ migrateErroresDbAtBoot()
     console.error('[BELU] migrateErroresDbAtBoot:', err.message);
   })
   .finally(() => {
+    logAsistenciaCount();
     app.listen(PORT, () => {
       logPublicPaths('listen');
       console.log(`\n  ✦ BELÚ SYSTEM corriendo en http://localhost:${PORT}`);

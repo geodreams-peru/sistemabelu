@@ -6,9 +6,9 @@ const XLSX     = require('xlsx');
 const multer   = require('multer');
 
 const router = express.Router();
+const { dbPath } = require('../lib/paths');
 
-// ─── BASE DE DATOS ───────────────────────────────────────────────
-const DB_PATH = path.join(__dirname, '../data/compras.db');
+const DB_PATH = dbPath('compras.db');
 const db = new sqlite3.Database(DB_PATH, err => {
   if (err) { console.error('✗ compras.db error:', err.message); return; }
   console.log('  ✓ compras.db conectada');
@@ -177,7 +177,7 @@ function esEncabezado(row) {
 }
 
 // ─── IMPORTAR CSV (una sola vez) ─────────────────────────────────
-const CSV_PATH = path.join(__dirname, '../data/compras_import.csv');
+const CSV_PATH = dbPath('compras_import.csv');
 async function importarCSV() {
   try {
     const existing = await get('SELECT COUNT(*) as c FROM compras');

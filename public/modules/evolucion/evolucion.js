@@ -47,7 +47,10 @@
   }
 
   function evoAvatarHtml(foto, nombre) {
-    if (foto) return `<img src="/uploads/fotos/${foto}" alt="">`;
+    if (foto) {
+      const ini = evoIniciales(nombre);
+      return `<img src="/uploads/fotos/${encodeURIComponent(foto)}" alt="" onerror="this.replaceWith(document.createTextNode('${ini.replace(/'/g, '')}'))">`;
+    }
     return evoIniciales(nombre);
   }
 
@@ -101,7 +104,10 @@
     });
 
     if (!lista.length) {
-      grid.innerHTML = '<div class="evo-empty" style="grid-column:1/-1"><div class="evo-empty-icon">👥</div><p>No hay embajadores que coincidan.</p></div>';
+      const msg = !resumenData.length
+        ? 'No hay embajadores activos. Verificá Asistencia → Embajadores, o que DATA_DIR apunte a tu backup en el servidor.'
+        : 'No hay embajadores que coincidan con el filtro.';
+      grid.innerHTML = `<div class="evo-empty" style="grid-column:1/-1"><div class="evo-empty-icon">👥</div><p>${msg}</p></div>`;
       return;
     }
 
