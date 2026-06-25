@@ -4,10 +4,9 @@
   "description": "Sistema Unificado BELÚ & DKP",
   "main": "server.js",
   "scripts": {
-    "prestart": "node migrate_errores_para_todos.js",
-    "postinstall": "node migrate_errores_para_todos.js",
     "start": "node server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "migrate:errores": "node migrate_errores_para_todos.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

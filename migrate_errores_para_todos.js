@@ -1,7 +1,12 @@
 // Migración: columna para_todos + tabla error_vistos en errores.db
-// Uso:
-//   node migrate_errores_para_todos.js
-//   node migrate_errores_para_todos.js "C:\Downloads\errores.db"
+//
+// Uso manual (local o en el servidor con la ruta real de data/):
+//   npm run migrate:errores
+//   node migrate_errores_para_todos.js "/ruta/al/data/errores.db"
+//
+// En Hostinger NO corre en postinstall: la carpeta data/ vive en el servidor
+// (persistente) y no en el clon de GitHub usado durante npm install.
+// Las migraciones se aplican al arrancar server.js (migrateErroresDbAtBoot).
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 const fs = require('fs');
@@ -9,6 +14,14 @@ const fs = require('fs');
 const DB_PATH = process.argv[2]
   ? path.resolve(process.argv[2])
   : path.join(__dirname, 'data', 'errores.db');
+
+function ensureDataDir() {
+  const dir = path.dirname(DB_PATH);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log('[migrate_errores] directorio creado:', dir);
+  }
+}
 
 function run(db, sql, p = []) {
   return new Promise((res, rej) => db.run(sql, p, function (e) { e ? rej(e) : res(this); }));
@@ -26,11 +39,12 @@ async function safeAddColumn(db, sql) {
 }
 
 (async () => {
-  if (!fs.existsSync(DB_PATH)) {
-    console.error('[migrate_errores] Archivo no encontrado:', DB_PATH);
-    process.exit(1);
+  ensureDataDir();
+  const dbExists = fs.existsSync(DB_PATH);
+  if (!dbExists) {
+    console.log('[migrate_errores] BD no encontrada, se creará:', DB_PATH);
   }
-  console.log('[migrate_errores] inicio', JSON.stringify({ dbPath: DB_PATH }));
+  console.log('[migrate_errores] inicio', JSON.stringify({ dbPath: DB_PATH, existed: dbExists }));
 
   const db = await new Promise((res, rej) => {
     const d = new sqlite3.Database(DB_PATH, err => err ? rej(err) : res(d));
