@@ -7,14 +7,15 @@ const multer   = require('multer');
 
 const router = express.Router();
 const { dbPath } = require('../lib/paths');
+const { openDatabase, shouldMigrate } = require('../lib/db');
 
 const DB_PATH = dbPath('compras.db');
-const db = new sqlite3.Database(DB_PATH, err => {
+const db = openDatabase('compras.db', err => {
   if (err) { console.error('✗ compras.db error:', err.message); return; }
   console.log('  ✓ compras.db conectada');
 });
 
-db.serialize(() => {
+if (shouldMigrate()) db.serialize(() => {
   db.run(`CREATE TABLE IF NOT EXISTS compras (
     id           TEXT PRIMARY KEY,
     fecha        TEXT NOT NULL,
@@ -225,7 +226,7 @@ async function importarCSV() {
     console.error('  ✗ Error importando CSV:', e.message);
   }
 }
-importarCSV();
+if (shouldMigrate()) importarCSV();
 
 // ─── RUTAS ───────────────────────────────────────────────────────
 

@@ -5,6 +5,7 @@ const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { dbPath, ensureRuntimeDirs, logPaths, UPLOADS_DIR, DATA_DIR } = require('./lib/paths');
+const { shouldMigrate } = require('./lib/db');
 
 const DEPLOY_VERSION = '2026-06-25-data-dir-v1';
 
@@ -151,6 +152,9 @@ app.use(session({
 
 // ─── Migración manual (sin auth) — abrir en navegador tras deploy ─
 app.get('/api/migrate-errores-db', async (_req, res) => {
+  if (!shouldMigrate()) {
+    return res.status(403).json({ ok: false, error: 'Migraciones deshabilitadas en producción. Ver DATABASE_RULES.md' });
+  }
   try {
     const schema = await migrateErroresDbAtBoot();
     bootLog('server.js:migrate-errores-db', 'OK', { deployVersion: DEPLOY_VERSION, ...schema }, 'H4');
@@ -233,7 +237,7 @@ function logAsistenciaCount() {
     console.warn(`  ⚠ asistencia.db no encontrada en ${asisPath} — configure DATA_DIR o restaure backup`);
     return;
   }
-  const db = new sqlite3.Database(asisPath, err => {
+  const db = new sqlite3.Database(asisPath, sqlite3.OPEN_READONLY, err => {
     if (err) return;
     db.get('SELECT COUNT(*) AS n FROM empleados WHERE COALESCE(activo,1)=1', [], (e, row) => {
       if (!e && row) console.log(`  ✦ Embajadores activos en BD: ${row.n} (${asisPath})`);
@@ -243,22 +247,26 @@ function logAsistenciaCount() {
 }
 
 // ─── INICIO ─────────────────────────────────────────────────────
-migrateErroresDbAtBoot()
-  .then(schema => {
-    bootLog('server.js:startup', 'migración OK', { deployVersion: DEPLOY_VERSION, ...schema }, 'H1');
-    console.log('  ✓ errores.db schema migrado (para_todos)');
-    return erroresRoutes.ensureErroresSchema();
-  })
-  .catch(err => {
-    bootLog('server.js:startup', 'migración falló', { error: err.message }, 'H1');
-    console.error('[BELU] migrateErroresDbAtBoot:', err.message);
-  })
-  .finally(() => {
-    logAsistenciaCount();
-    app.listen(PORT, () => {
-      logPublicPaths('listen');
-      console.log(`\n  ✦ BELÚ SYSTEM corriendo en http://localhost:${PORT}`);
-      console.log(`  ✦ Deploy: ${DEPLOY_VERSION}`);
-      console.log(`  ✦ Entorno: ${process.env.NODE_ENV || 'development'}\n`);
-    });
+(shouldMigrate()
+  ? migrateErroresDbAtBoot()
+      .then(schema => {
+        bootLog('server.js:startup', 'migración OK', { deployVersion: DEPLOY_VERSION, ...schema }, 'H1');
+        console.log('  ✓ errores.db schema migrado (para_todos)');
+        return erroresRoutes.ensureErroresSchema();
+      })
+      .catch(err => {
+        bootLog('server.js:startup', 'migración falló', { error: err.message }, 'H1');
+        console.error('[BELU] migrateErroresDbAtBoot:', err.message);
+      })
+  : Promise.resolve().then(() => {
+      console.log('  ✦ Producción: migraciones de esquema deshabilitadas (ver DATABASE_RULES.md)');
+    })
+).finally(() => {
+  logAsistenciaCount();
+  app.listen(PORT, () => {
+    logPublicPaths('listen');
+    console.log(`\n  ✦ BELÚ SYSTEM corriendo en http://localhost:${PORT}`);
+    console.log(`  ✦ Deploy: ${DEPLOY_VERSION}`);
+    console.log(`  ✦ Entorno: ${process.env.NODE_ENV || 'development'}\n`);
   });
+});

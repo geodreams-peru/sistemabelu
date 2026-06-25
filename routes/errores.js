@@ -5,18 +5,19 @@ const fs      = require('fs');
 
 const router = express.Router();
 const { dbPath } = require('../lib/paths');
+const { openDatabase, shouldMigrate } = require('../lib/db');
 
 // ─── BASE DE DATOS ───────────────────────────────────────────────
 const DB_PATH = dbPath('errores.db');
 const ASIST_DB_PATH = dbPath('asistencia.db');
 const SCHEMA_VERSION = 2;
 
-const db = new sqlite3.Database(DB_PATH, err => {
+const db = openDatabase('errores.db', err => {
   if (err) { console.error('✗ errores.db error:', err.message); return; }
   console.log('  ✓ errores.db conectada');
 });
 
-const asistDb = new sqlite3.Database(ASIST_DB_PATH, err => {
+const asistDb = openDatabase('asistencia.db', err => {
   if (err) { console.error('✗ asistencia.db (errores aux) error:', err.message); return; }
 });
 
@@ -70,6 +71,7 @@ async function runErroresMigrations() {
 
 async function ensureErroresSchema() {
   if (!erroresSchemaReady) {
+    if (!shouldMigrate()) { erroresSchemaReady = Promise.resolve(); return erroresSchemaReady; }
     erroresSchemaReady = runErroresMigrations().catch(err => {
       erroresSchemaReady = null;
       throw err;

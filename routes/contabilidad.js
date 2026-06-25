@@ -4,13 +4,14 @@ const path    = require('path');
 const XLSX    = require('xlsx');
 const router = express.Router();
 const { dbPath } = require('../lib/paths');
+const { openDatabase, shouldMigrate } = require('../lib/db');
 
 // ── Base de datos propia del módulo ─────────────────────────────
 const DB_PATH = dbPath('contabilidad.db');
-const db = new sqlite3.Database(DB_PATH, err => {
+const db = openDatabase('contabilidad.db', err => {
   if (err) { console.error('Contabilidad DB error:', err.message); return; }
   console.log('  ✓ contabilidad.db conectada');
-  init();
+  if (shouldMigrate()) init();
 });
 
 function run(sql, p = []) {
@@ -24,11 +25,11 @@ function all(sql, p = []) {
 }
 
 // DBs auxiliares para auto-cálculo de gastos
-const comprasDb = new sqlite3.Database(dbPath('compras.db'), err => {
+const comprasDb = openDatabase('compras.db', err => {
   if (err) console.error('Contabilidad compras.db aux error:', err.message);
 });
 comprasDb.on('error', err => console.error('Contabilidad compras.db aux:', err.message));
-const asisDb = new sqlite3.Database(dbPath('asistencia.db'), err => {
+const asisDb = openDatabase('asistencia.db', err => {
   if (err) console.error('Contabilidad asistencia.db aux error:', err.message);
 });
 asisDb.on('error', err => console.error('Contabilidad asistencia.db aux:', err.message));

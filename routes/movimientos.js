@@ -4,13 +4,14 @@ const path    = require('path');
 const router  = express.Router();
 
 const { dbPath } = require('../lib/paths');
+const { openDatabase, shouldMigrate } = require('../lib/db');
 
 // ── DB propia del módulo ─────────────────────────────────────────
 const DB_PATH = dbPath('movimientos.db');
-const db = new sqlite3.Database(DB_PATH, err => {
+const db = openDatabase('movimientos.db', err => {
   if (err) { console.error('Movimientos DB error:', err.message); return; }
   console.log('  ✓ movimientos.db conectada');
-  init();
+  if (shouldMigrate()) init();
 });
 
 function run(sql, p = []) {

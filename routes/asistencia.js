@@ -7,6 +7,7 @@ const fs         = require('fs');
 const router     = express.Router();
 const correoProgramado = require('../services/correoProgramado');
 const { dbPath, uploadsPath } = require('../lib/paths');
+const { openDatabase, shouldMigrate } = require('../lib/db');
 
 // ── Config ───────────────────────────────────────────────────────
 const TZ = 'America/Lima';
@@ -80,14 +81,14 @@ const FOTOS_ASIST_DIR = uploadsPath('fotos_asistencia');
 fs.mkdirSync(FOTOS_ASIST_DIR, { recursive: true });
 
 // ── DB ───────────────────────────────────────────────────────────
-const db = new sqlite3.Database(DB_PATH, err => {
+const db = openDatabase('asistencia.db', err => {
   if (err) { console.error('Asistencia DB error:', err.message); return; }
   console.log('  ✓ asistencia.db conectada');
-  initDB();
+  if (shouldMigrate()) initDB();
 });
 db.on('error', err => console.error('Asistencia DB:', err.message));
 
-const erroresDb = new sqlite3.Database(ERRORES_DB_PATH, err => {
+const erroresDb = openDatabase('errores.db', err => {
   if (err) { console.error('Errores DB (asistencia aux) error:', err.message); }
 });
 erroresDb.on('error', err => console.error('Errores DB (asistencia aux):', err.message));
@@ -140,6 +141,7 @@ async function safeAddColumn(sql) {
 
 async function ensureConfigSchema() {
   if (configSchemaReady) return configSchemaReady;
+  if (!shouldMigrate()) { configSchemaReady = Promise.resolve(); return configSchemaReady; }
 
   configSchemaReady = (async () => {
     await run(`CREATE TABLE IF NOT EXISTS configuracion (

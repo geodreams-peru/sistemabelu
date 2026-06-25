@@ -4,17 +4,18 @@ const path = require('path');
 const router = express.Router();
 const catalogo = require('../lib/evolucionCatalogo');
 const { dbPath } = require('../lib/paths');
+const { openDatabase, shouldMigrate } = require('../lib/db');
 
 const DB_PATH = dbPath('evolucion.db');
 const ASIS_DB_PATH = dbPath('asistencia.db');
 
-const db = new sqlite3.Database(DB_PATH, err => {
+const db = openDatabase('evolucion.db', err => {
   if (err) { console.error('[evolucion] DB error:', err.message); return; }
   console.log('  ✓ evolucion.db conectada');
-  initDB();
+  if (shouldMigrate()) initDB();
 });
 
-const asisDb = new sqlite3.Database(ASIS_DB_PATH, err => {
+const asisDb = openDatabase('asistencia.db', err => {
   if (err) console.error('[evolucion] asistencia.db aux error:', err.message, ASIS_DB_PATH);
   else console.log('  ✓ evolucion → asistencia.db', ASIS_DB_PATH);
 });
