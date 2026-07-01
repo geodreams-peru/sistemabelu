@@ -233,13 +233,14 @@ app.get('*', (req, res) => {
 
 function logAsistenciaCount() {
   const asisPath = dbPath('asistencia.db');
+  const sqlActivoTrue = "COALESCE(NULLIF(LOWER(TRIM(CAST(activo AS TEXT))),''),'1') IN ('1','true','t','si','s','y','yes')";
   if (!fs.existsSync(asisPath)) {
     console.warn(`  ⚠ asistencia.db no encontrada en ${asisPath} — configure DATA_DIR o restaure backup`);
     return;
   }
   const db = new sqlite3.Database(asisPath, sqlite3.OPEN_READONLY, err => {
     if (err) return;
-    db.get('SELECT COUNT(*) AS n FROM empleados WHERE COALESCE(activo,1)=1', [], (e, row) => {
+    db.get(`SELECT COUNT(*) AS n FROM empleados WHERE ${sqlActivoTrue}`, [], (e, row) => {
       if (!e && row) console.log(`  ✦ Embajadores activos en BD: ${row.n} (${asisPath})`);
       db.close();
     });

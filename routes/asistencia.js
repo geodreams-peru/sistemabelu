@@ -129,6 +129,17 @@ function all(sql, p = []) {
   return new Promise((res, rej) => db.all(sql, p, (e, r) => e ? rej(e) : res(r)));
 }
 
+// Compatibilidad: en algunas migraciones antiguas `activo` quedó como texto
+// (p.ej. "true", "si", "1"). Esta expresión evita perder embajadores por tipado.
+const SQL_ACTIVO_TRUE = "COALESCE(NULLIF(LOWER(TRIM(CAST(activo AS TEXT))),''),'1') IN ('1','true','t','si','s','y','yes')";
+
+function esActivo(valor) {
+  if (valor === null || valor === undefined) return true;
+  const v = String(valor).trim().toLowerCase();
+  if (!v) return true;
+  return ['1', 'true', 't', 'si', 's', 'y', 'yes'].includes(v);
+}
+
 let configSchemaReady = null;
 
 async function safeAddColumn(sql) {
@@ -885,7 +896,7 @@ async function audit(tabla, id, accion, detalle) {
 router.get('/dashboard', async (req, res) => {
   try {
     const hoy   = hoyISO();
-    const total = (await get('SELECT COUNT(*) AS t FROM empleados WHERE activo=1'))?.t || 0;
+    const total = (await get(`SELECT COUNT(*) AS t FROM empleados WHERE ${SQL_ACTIVO_TRUE}`))?.t || 0;
     const regs  = await all(`
       SELECT r.*, e.nombre, e.apellido, e.cargo, e.foto, e.documento
       FROM registros r JOIN empleados e ON e.id=r.empleado_id
@@ -902,7 +913,7 @@ router.get('/dashboard', async (req, res) => {
     // Leaderboard quincenal
     const now = nowLima();
     const q   = periodoParams(now.year, now.month, now.day <= 15 ? 1 : 2);
-    const activos = await all('SELECT * FROM empleados WHERE activo=1 ORDER BY apellido,nombre');
+    const activos = await all(`SELECT * FROM empleados WHERE ${SQL_ACTIVO_TRUE} ORDER BY apellido,nombre`);
     const lb = [];
     for (const e of activos) {
       const r = await get('SELECT COUNT(*) AS d FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL',
@@ -921,7 +932,7 @@ router.get('/buscar', async (req, res) => {
   try {
     const doc = String(req.query.documento || '').trim();
     if (!doc) return res.json({ encontrado: false });
-    const emp = await get('SELECT * FROM empleados WHERE documento=? AND activo=1', [doc]);
+    const emp = await get(`SELECT * FROM empleados WHERE documento=? AND ${SQL_ACTIVO_TRUE}`, [doc]);
     if (!emp) return res.json({ encontrado: false });
     const hoy = hoyISO();
     const reg = await get('SELECT hora_entrada, hora_salida FROM registros WHERE empleado_id=? AND fecha=?', [emp.id, hoy]);
@@ -940,7 +951,7 @@ router.post('/cumpleanos', async (req, res) => {
     const fechaRaw = String(req.body.fecha_nacimiento || '').trim();
     if (!doc) return res.status(400).json({ ok: false, error: 'Documento requerido.' });
 
-    const emp = await get('SELECT * FROM empleados WHERE documento=? AND activo=1', [doc]);
+    const emp = await get(`SELECT * FROM empleados WHERE documento=? AND ${SQL_ACTIVO_TRUE}`, [doc]);
     if (!emp) return res.status(404).json({ ok: false, error: 'Embajadora no encontrada.' });
 
     const val = validarFechaNacimientoISO(fechaRaw);
@@ -972,7 +983,7 @@ router.post('/marcar', async (req, res) => {
     const doc = String(req.body.documento || '').trim();
     if (!doc) return res.status(400).json({ error: 'Ingresá el documento.' });
 
-    const emp = await get('SELECT * FROM empleados WHERE documento=? AND activo=1', [doc]);
+    const emp = await get(`SELECT * FROM empleados WHERE documento=? AND ${SQL_ACTIVO_TRUE}`, [doc]);
     if (!emp) return res.status(404).json({ error: `Documento ${doc} no encontrado.` });
 
     const hoy   = hoyISO();
@@ -1089,7 +1100,8 @@ router.post('/errores-vistos', async (req, res) => {
 router.get(['/empleados', '/embajadores'], async (req, res) => {
   try {
     const { activo = '1' } = req.query;
-    const empleados = await all('SELECT * FROM empleados WHERE activo=? ORDER BY apellido,nombre', [+activo]);
+    const sqlFiltro = String(activo) === '1' ? SQL_ACTIVO_TRUE : `NOT (${SQL_ACTIVO_TRUE})`;
+    const empleados = await all(`SELECT * FROM empleados WHERE ${sqlFiltro} ORDER BY apellido,nombre`);
     const embajadores = empleados.map(e => ({ ...e, nombre_completo: `${e.nombre} ${e.apellido}` }));
     res.json({ ok: true, empleados: embajadores, embajadores });
   } catch (e) { res.status(500).json({ error: e.message }); }
@@ -1136,7 +1148,7 @@ router.post(['/empleados', '/embajadores'], upload.single('foto'), async (req, r
 
     const existe = await get('SELECT id, activo FROM empleados WHERE documento=?', [documento.trim()]);
     if (existe) {
-      if (!existe.activo) {
+      if (!esActivo(existe.activo)) {
         return res.status(400).json({ error: `El documento ${documento} pertenece a un embajador dado de baja. ¿Deseas reactivarlo?`, puede_reactivar: true, id: existe.id });
       }
       return res.status(400).json({ error: `El documento ${documento} ya está registrado.` });
@@ -1241,7 +1253,7 @@ router.get('/sueldos', async (req, res) => {
     const cfg     = await get('SELECT * FROM configuracion WHERE id=1') || {};
     const activos = await all(
       `SELECT * FROM empleados
-       WHERE (activo=1 OR (fecha_baja IS NOT NULL AND fecha_baja >= ?))
+       WHERE ((${SQL_ACTIVO_TRUE}) OR (fecha_baja IS NOT NULL AND fecha_baja >= ?))
          AND (fecha_ingreso IS NULL OR fecha_ingreso <= ?)
        ORDER BY apellido,nombre`,
       [periodo.desde, periodo.hasta]

@@ -147,12 +147,13 @@ function auth(req, res, next) {
 // ─── HELPERS ─────────────────────────────────────────────────────
 const asistGet = (sql, p=[]) => new Promise((res,rej) => asistDb.get(sql, p, (e,r) => e ? rej(e) : res(r)));
 const asistAll = (sql, p=[]) => new Promise((res,rej) => asistDb.all(sql, p, (e,r) => e ? rej(e) : res(r || [])));
+const SQL_ACTIVO_TRUE = "COALESCE(NULLIF(LOWER(TRIM(CAST(activo AS TEXT))),''),'1') IN ('1','true','t','si','s','y','yes')";
 
 async function resolverEmbajador(empleadoId) {
   const id = Number(empleadoId);
   if (!id) throw new Error('Embajador requerido');
   const emp = await asistGet(
-    'SELECT id, nombre, apellido FROM empleados WHERE id=? AND activo=1',
+    `SELECT id, nombre, apellido FROM empleados WHERE id=? AND ${SQL_ACTIVO_TRUE}`,
     [id]
   );
   if (!emp) throw new Error('Embajador no encontrado o inactivo');
@@ -164,7 +165,7 @@ async function resolverEmbajador(empleadoId) {
 router.get('/embajadores', auth, async (_req, res) => {
   try {
     const rows = await asistAll(
-      'SELECT id, nombre, apellido, documento, cargo FROM empleados WHERE activo=1 ORDER BY apellido, nombre'
+      `SELECT id, nombre, apellido, documento, cargo FROM empleados WHERE ${SQL_ACTIVO_TRUE} ORDER BY apellido, nombre`
     );
     const embajadores = rows.map(e => ({
       id: e.id,
