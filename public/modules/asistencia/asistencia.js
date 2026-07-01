@@ -1239,10 +1239,11 @@ async function asistAbrirModalCalendario(empId, desde, hasta) {
 
 function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   const body = document.getElementById('sueldoCalBody');
-  const { registros, descansosFechas, feriadosFechas, noContableFechas } = boleta;
+  const { registros, descansosFechas, feriadosFechas, noContableFechas, faltasFechas } = boleta;
   const fechasDescanso = new Set((descansosFechas || []).filter(f => typeof f === 'string'));
   const fechasFeriado = new Set((feriadosFechas || []).filter(f => typeof f === 'string'));
   const fechasNoContable = new Set((noContableFechas || []).filter(f => typeof f === 'string'));
+  const fechasFalta = new Set((faltasFechas || []).filter(f => typeof f === 'string'));
   const registrosPorFecha = new Map(registros.map(r => [r.fecha, r]));
 
   // Mostrar el mes completo: determinar primer y último día del mes
@@ -1279,6 +1280,7 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
       fechasNoContable,
       fechasFeriado,
       fechasDescanso,
+      fechasFalta,
       autoDescansos,
       hoyStr
     });
@@ -1436,28 +1438,31 @@ function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha
   return autoDescansos;
 }
 
-function asistResolverEstadoDia({ fecha, reg, fechasNoContable, fechasFeriado, fechasDescanso, autoDescansos, hoyStr }) {
+function asistResolverEstadoDia({ fecha, reg, fechasNoContable, fechasFeriado, fechasDescanso, fechasFalta = new Set(), autoDescansos, hoyStr }) {
   const esNoContable = fechasNoContable.has(fecha);
   const esFeriado = !esNoContable && fechasFeriado.has(fecha);
   const esDescanso = !esNoContable && !esFeriado && fechasDescanso.has(fecha);
-  const esAutoDesc = !esNoContable && !esFeriado && !esDescanso && autoDescansos.has(fecha);
+  const esFaltaManual = !esNoContable && !esFeriado && !esDescanso && fechasFalta.has(fecha);
+  const esAutoDesc = !esNoContable && !esFeriado && !esDescanso && !esFaltaManual && autoDescansos.has(fecha);
   const esFuturo = fecha > hoyStr;
-  const esFaltaVisual = !reg && !esNoContable && !esFeriado && !esDescanso && !esAutoDesc && !esFuturo;
+  const esFaltaVisual = esFaltaManual || (!reg && !esNoContable && !esFeriado && !esDescanso && !esAutoDesc && !esFuturo);
   const estadoSeleccion = esNoContable
     ? 'no_contable'
     : esFeriado
       ? 'feriado'
       : ((esDescanso || esAutoDesc) ? 'descanso' : 'falta');
 
-  return { esNoContable, esFeriado, esDescanso, esAutoDesc, esFuturo, esFaltaVisual, estadoSeleccion };
+  return { esNoContable, esFeriado, esDescanso, esFaltaManual, esAutoDesc, esFuturo, esFaltaVisual, estadoSeleccion };
 }
 
 // ── Mini modal para marcar estado por día ─────────────────────────
 
 let _sueldoMiniFechaActual = null;
+let _sueldoMiniEstadoActual = null;
 
 function asistAbrirMiniModalDia(fecha, estadoActual) {
   _sueldoMiniFechaActual = fecha;
+  _sueldoMiniEstadoActual = String(estadoActual || 'falta');
   const overlay = document.getElementById('sueldoMiniModal');
   if (!overlay) return;
   overlay.classList.remove('hide');
@@ -1480,6 +1485,7 @@ function asistCerrarMiniModalDia() {
   const overlay = document.getElementById('sueldoMiniModal');
   if (overlay) overlay.classList.add('hide');
   _sueldoMiniFechaActual = null;
+  _sueldoMiniEstadoActual = null;
 }
 
 async function asistMarcarDiaEstado(estado) {
@@ -1489,14 +1495,15 @@ async function asistMarcarDiaEstado(estado) {
   const descansosActuales = new Set((boleta.descansosFechas || []).filter(f => typeof f === 'string'));
   const feriadosActuales = new Set((boleta.feriadosFechas || []).filter(f => typeof f === 'string'));
   const noContableActuales = new Set((boleta.noContableFechas || []).filter(f => typeof f === 'string'));
+  const faltasActuales = new Set((boleta.faltasFechas || []).filter(f => typeof f === 'string'));
 
-  const estadoActual = noContableActuales.has(_sueldoMiniFechaActual)
+  const estadoActual = _sueldoMiniEstadoActual || (noContableActuales.has(_sueldoMiniFechaActual)
     ? 'no_contable'
     : feriadosActuales.has(_sueldoMiniFechaActual)
       ? 'feriado'
       : descansosActuales.has(_sueldoMiniFechaActual)
         ? 'descanso'
-        : 'falta';
+        : (faltasActuales.has(_sueldoMiniFechaActual) ? 'falta' : 'falta'));
 
   if (estado === estadoActual) {
     asistCerrarMiniModalDia();
@@ -1506,10 +1513,12 @@ async function asistMarcarDiaEstado(estado) {
   descansosActuales.delete(_sueldoMiniFechaActual);
   feriadosActuales.delete(_sueldoMiniFechaActual);
   noContableActuales.delete(_sueldoMiniFechaActual);
+  faltasActuales.delete(_sueldoMiniFechaActual);
 
   if (estado === 'descanso') descansosActuales.add(_sueldoMiniFechaActual);
   if (estado === 'feriado') feriadosActuales.add(_sueldoMiniFechaActual);
   if (estado === 'no_contable') noContableActuales.add(_sueldoMiniFechaActual);
+  if (estado === 'falta') faltasActuales.add(_sueldoMiniFechaActual);
 
   const payload = {};
   payload[empId] = [...descansosActuales].sort();
@@ -1517,6 +1526,8 @@ async function asistMarcarDiaEstado(estado) {
   payloadFeriados[empId] = [...feriadosActuales].sort();
   const payloadNoContable = {};
   payloadNoContable[empId] = [...noContableActuales].sort();
+  const payloadFaltas = {};
+  payloadFaltas[empId] = [...faltasActuales].sort();
 
   const btnDesc = document.getElementById('sueldoMiniBtnDescanso');
   const btnFal = document.getElementById('sueldoMiniBtnFalta');
@@ -1536,7 +1547,8 @@ async function asistMarcarDiaEstado(estado) {
         periodo_hasta: hasta,
         descansos: payload,
         feriados: payloadFeriados,
-        no_contable: payloadNoContable
+        no_contable: payloadNoContable,
+        faltas: payloadFaltas
       })
     });
     const data = await res.json();
@@ -1545,6 +1557,7 @@ async function asistMarcarDiaEstado(estado) {
       _sueldoCalData.boleta.descansosFechas = [...descansosActuales].sort();
       _sueldoCalData.boleta.feriadosFechas = [...feriadosActuales].sort();
       _sueldoCalData.boleta.noContableFechas = [...noContableActuales].sort();
+      _sueldoCalData.boleta.faltasFechas = [...faltasActuales].sort();
       asistCerrarMiniModalDia();
       asistRenderCalendario(_sueldoCalData.boleta, _sueldoCalData.empData, _sueldoCalData.desde, _sueldoCalData.hasta);
     } else {
@@ -1838,6 +1851,7 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   const descansosFechasCalendario = Array.isArray(dataMes?.descansosFechas) ? dataMes.descansosFechas : [];
   const feriadosFechasCalendario = Array.isArray(dataMes?.feriadosFechas) ? dataMes.feriadosFechas : [];
   const noContableFechasCalendario = Array.isArray(dataMes?.noContableFechas) ? dataMes.noContableFechas : [];
+  const faltasFechasCalendario = Array.isArray(dataMes?.faltasFechas) ? dataMes.faltasFechas : [];
 
   // ── Extraer datos ──
   const diasTrab   = +resumen?.diasTrabajados || 0;
@@ -1872,6 +1886,7 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   const fechasDescanso = new Set((descansosFechasCalendario || []).filter(f => typeof f === 'string'));
   const fechasFeriado = new Set((feriadosFechasCalendario || []).filter(f => typeof f === 'string'));
   const fechasNoContable = new Set((noContableFechasCalendario || []).filter(f => typeof f === 'string'));
+  const fechasFalta = new Set((faltasFechasCalendario || []).filter(f => typeof f === 'string'));
   const registrosPorFecha = new Map((registrosCalendario || []).map(r => [r.fecha, r]));
   const qDesde = new Date(desde + 'T12:00:00');
   const qHasta = new Date(hasta + 'T12:00:00');
@@ -1911,6 +1926,7 @@ async function asistImprimirBoleta(empId, desde, hasta) {
       fechasNoContable,
       fechasFeriado,
       fechasDescanso,
+      fechasFalta,
       autoDescansos: autoDescansosPrint,
       hoyStr: hoy.toISOString().slice(0, 10)
     });
