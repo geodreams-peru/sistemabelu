@@ -1578,17 +1578,86 @@ router.post('/sueldos/descansos', authAdmin, async (req, res) => {
 
       const noContableSet = new Set(validasNoContable);
       const feriadosSet = new Set(validasFeriados.filter(f => !noContableSet.has(f)));
-      const fechasDescanso = new Set(validasDescansos.filter(f => !noContableSet.has(f) && !feriadosSet.has(f)));
+      let fechasDescanso = new Set(validasDescansos.filter(f => !noContableSet.has(f) && !feriadosSet.has(f)));
       const fechasFalta = new Set(validasFaltas.filter(f => !noContableSet.has(f) && !feriadosSet.has(f) && !fechasDescanso.has(f)));
       const asistencias = asistenciasPorEmpleado.get(empleado_id) || new Set();
 
+      // Normalizar descansos por regla semanal acordada:
+      // - Semana completa con 6 trabajados: 1 descanso pagado (salvo falta forzada manual)
+      // - Semana completa con 5 o menos: no hay descanso pagado
+      // Esto evita que un descanso manual quede pagado cuando en esa semana hubo otra falta.
+      const fechasAsistencia = new Set();
+      for (const f of asistencias) {
+        if (!noContableSet.has(f)) fechasAsistencia.add(f);
+      }
+      for (const f of feriadosSet) {
+        if (!noContableSet.has(f)) fechasAsistencia.add(f);
+      }
+
+      const descansoNormalizado = new Set(fechasDescanso);
+      const semanaInicio = desdeEmp.minus({ days: weekday(desdeEmp) });
+      for (let lun = semanaInicio; lun <= hastaCalc; lun = lun.plus({ days: 7 })) {
+        const diasSem = [];
+        for (let i = 0; i < 7; i++) {
+          const d = lun.plus({ days: i });
+          if (d < desdeEmp || d > hastaCalc) continue;
+          const f = d.toISODate();
+          if (noContableSet.has(f)) continue;
+          diasSem.push(f);
+        }
+        if (diasSem.length !== 7) continue;
+
+        const trabSem = diasSem.filter(f => fechasAsistencia.has(f)).length;
+        const ausentesSem = diasSem.filter(f => !fechasAsistencia.has(f));
+
+        for (const f of ausentesSem) descansoNormalizado.delete(f);
+
+        if (trabSem === 6) {
+          const forzadaFalta = ausentesSem.some(f => fechasFalta.has(f));
+          if (!forzadaFalta) {
+            const manual = ausentesSem.find(f => fechasDescanso.has(f) && !fechasFalta.has(f));
+            const elegida = manual || ausentesSem.find(f => !fechasFalta.has(f));
+            if (elegida) descansoNormalizado.add(elegida);
+          }
+        }
+      }
+      fechasDescanso = descansoNormalizado;
+
       let descansosCount = 0;
       let faltasCount = 0;
+      const fechasContadas = new Set();
+
+      // Semanas completas: misma regla de cálculo que la liquidación automática.
+      for (let lun = semanaInicio; lun <= hastaCalc; lun = lun.plus({ days: 7 })) {
+        const diasSem = [];
+        for (let i = 0; i < 7; i++) {
+          const d = lun.plus({ days: i });
+          if (d < desdeEmp || d > hastaCalc) continue;
+          const f = d.toISODate();
+          if (noContableSet.has(f)) continue;
+          diasSem.push(f);
+        }
+        if (diasSem.length !== 7) continue;
+
+        diasSem.forEach(f => fechasContadas.add(f));
+        const trabSem = diasSem.filter(f => fechasAsistencia.has(f)).length;
+
+        if (trabSem === 7) continue;
+        if (trabSem === 6) {
+          const ausente = diasSem.find(f => !fechasAsistencia.has(f));
+          if (ausente && !fechasFalta.has(ausente) && fechasDescanso.has(ausente)) descansosCount += 1;
+          else faltasCount += 1;
+          continue;
+        }
+        faltasCount += Math.max(0, 6 - trabSem);
+      }
+
+      // Días fuera de semanas completas (bordes de período): conteo directo por etiqueta.
       for (let d = desdeEmp; d <= hastaCalc; d = d.plus({ days: 1 })) {
         const f = d.toISODate();
+        if (fechasContadas.has(f)) continue;
         if (noContableSet.has(f)) continue;
-        if (asistencias.has(f)) continue;
-        if (feriadosSet.has(f)) continue;
+        if (fechasAsistencia.has(f)) continue;
         if (fechasFalta.has(f)) {
           faltasCount++;
           continue;
