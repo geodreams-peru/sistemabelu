@@ -1145,6 +1145,7 @@ async function asistCargarSueldos() {
           <th title="Prestamo en quincena" style="padding:6px 2px;text-align:center">Prést</th>
           <th title="Total final" style="padding:6px 2px;text-align:center">SUELDO</th>
           <th class="asistencia-sueldos-nota" title="Nota" style="padding:6px 2px;text-align:center">Nota</th>
+          <th style="padding:6px 2px;text-align:center">Imprimir</th>
         </tr></thead>
         <tbody>${data.resultados.map(r => {
           const empName = r.emp.nombre_completo || '';
@@ -1174,6 +1175,9 @@ async function asistCargarSueldos() {
           <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--danger)">${r.prestamo > 0 ? aFmt(r.prestamo) : '—'}</td>
           <td style="text-align:center;white-space:nowrap;padding:4px 2px"><strong style="color:${r.sueldo >= 0 ? 'var(--success)' : 'var(--danger)'};font-size:.9em">${aFmt(r.sueldo)}</strong></td>
           <td class="asistencia-sueldos-nota" style="padding:4px 2px;font-size:.75em;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.nota||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || '—'}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px">
+            <button class="btn btn-secondary" style="font-size:.72em;padding:4px 8px;min-width:66px" onclick="asistImprimirBoleta(${r.emp.id},'${p.desde}','${p.hasta}')">🖨 Imprimir</button>
+          </td>
         </tr>`;
         }).join('')}</tbody>
       </table>`;
