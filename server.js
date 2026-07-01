@@ -7,7 +7,7 @@ const sqlite3 = require('sqlite3').verbose();
 const { dbPath, ensureRuntimeDirs, logPaths, UPLOADS_DIR, DATA_DIR } = require('./lib/paths');
 const { shouldMigrate } = require('./lib/db');
 
-const DEPLOY_VERSION = '2026-07-01-failsoft-db-v2';
+const DEPLOY_VERSION = '2026-07-01-data-read-diagnostic-v3';
 
 function bootLog(location, message, data, hypothesisId = 'H503') {
   const entry = { sessionId: '61705f', hypothesisId, location, message, data, timestamp: Date.now() };
@@ -191,9 +191,11 @@ app.use('/api/evolucion',    evolucionRoutes);
 app.get('/api/health', async (_req, res) => {
   const dataDir = DATA_DIR;
   const uploadsDir = UPLOADS_DIR;
+  const asisPath = dbPath('asistencia.db');
   let dataFiles = null;
   let publicFiles = null;
   let erroresSchema = null;
+  let asistenciaDbInfo = null;
   try { dataFiles = fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : null; } catch (e) { dataFiles = { error: e.message }; }
   try { publicFiles = fs.existsSync(PUBLIC_DIR) ? fs.readdirSync(PUBLIC_DIR) : null; } catch (e) { publicFiles = { error: e.message }; }
   try {
@@ -201,6 +203,37 @@ app.get('/api/health', async (_req, res) => {
   } catch (e) {
     erroresSchema = { error: e.message };
   }
+
+  try {
+    const exists = fs.existsSync(asisPath);
+    const size = exists ? fs.statSync(asisPath).size : 0;
+    let empleadosActivos = null;
+    let empleadosTotal = null;
+
+    if (exists && size > 0) {
+      const db = new sqlite3.Database(asisPath, sqlite3.OPEN_READONLY);
+      const q = (sql) => new Promise((resolve, reject) => db.get(sql, [], (err, row) => err ? reject(err) : resolve(row || {})));
+      try {
+        const t = await q('SELECT COUNT(*) AS n FROM empleados');
+        const a = await q("SELECT COUNT(*) AS n FROM empleados WHERE COALESCE(NULLIF(LOWER(TRIM(CAST(activo AS TEXT))),''),'1') IN ('1','true','t','si','s','y','yes')");
+        empleadosTotal = t.n || 0;
+        empleadosActivos = a.n || 0;
+      } finally {
+        db.close();
+      }
+    }
+
+    asistenciaDbInfo = {
+      path: asisPath,
+      exists,
+      size,
+      empleadosTotal,
+      empleadosActivos
+    };
+  } catch (e) {
+    asistenciaDbInfo = { error: e.message, path: asisPath };
+  }
+
   res.json({
     ok: fs.existsSync(INDEX_HTML),
     deployVersion: DEPLOY_VERSION,
@@ -219,6 +252,7 @@ app.get('/api/health', async (_req, res) => {
     uploadsDir,
     uploadsDirFromEnv: process.env.UPLOADS_DIR || null,
     dataFiles,
+    asistenciaDbInfo,
     uploadsDirExists: fs.existsSync(uploadsDir),
     publicFiles,
     erroresSchema,
