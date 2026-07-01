@@ -12,6 +12,15 @@ let _transcurridoInterval = null;
 let _camaraStream = null;
 const ASIST_MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+async function asistFetchJson(url, opts) {
+  const res = await fetch(url, opts);
+  if (res.status === 401) {
+    window.location.href = '/login';
+    throw new Error('No autenticado');
+  }
+  return res.json();
+}
+
 // ── Init ─────────────────────────────────────────────────────────
 (function asistInit() {
   const hoy   = new Date();
@@ -790,7 +799,7 @@ async function asistCargarEmpleados() {
   const t = document.getElementById('tablaEmpleados');
   t.innerHTML = '<p class="text-center text-muted" style="padding:30px">Cargando...</p>';
   try {
-    const data = await fetch(`${AAPI}/embajadores?activo=${inactivos}`).then(r => r.json());
+    const data = await asistFetchJson(`${AAPI}/embajadores?activo=${inactivos}`);
     const embajadores = data.embajadores || data.empleados || [];
     if (!embajadores.length) { t.innerHTML = '<p class="text-center text-muted" style="padding:30px">Sin embajadores</p>'; return; }
     const esAdmin = window.usuarioActual?.permisos?.asistencia_config;
@@ -817,7 +826,7 @@ async function asistCargarEmpleados() {
 
 async function asistCargarEmpleadosSelect() {
   try {
-    const data = await fetch(`${AAPI}/embajadores?activo=1`).then(r => r.json());
+    const data = await asistFetchJson(`${AAPI}/embajadores?activo=1`);
     const embajadores = data.embajadores || data.empleados || [];
     ['regEmpSelect'].forEach(id => {
       const sel = document.getElementById(id); if (!sel) return;
@@ -849,7 +858,7 @@ function asistNuevoEmpleado() {
 }
 
 async function asistEditarEmpleado(id) {
-  const data = await fetch(`${AAPI}/embajadores/${id}`).then(r => r.json());
+  const data = await asistFetchJson(`${AAPI}/embajadores/${id}`);
   const e = data.embajador || data.empleado; if (!e) return;
   document.getElementById('empFormTitulo').textContent = `Ficha Embajador: ${e.nombre_completo}`;
   document.getElementById('empId').value        = e.id;
@@ -990,7 +999,7 @@ async function asistCargarRegistros() {
   let qs = `?desde=${desde}&hasta=${hasta}`;
   if (empId) qs += `&empleado_id=${empId}`;
   try {
-    const data    = await fetch(`${AAPI}/registros${qs}`).then(r => r.json());
+    const data    = await asistFetchJson(`${AAPI}/registros${qs}`);
     if (data?.ok === false) {
       t.innerHTML = `<p class="text-center text-muted" style="padding:30px">${data.error || 'Error al cargar registros'}</p>`;
       return;
@@ -1030,7 +1039,7 @@ function asistNuevoRegistro() {
 async function asistEditarRegistro(id) {
   try {
     await asistCargarEmpleadosSelect();
-    const d   = await fetch(`${AAPI}/registros?desde=2020-01-01&hasta=2030-12-31`).then(r => r.json());
+    const d   = await asistFetchJson(`${AAPI}/registros?desde=2020-01-01&hasta=2030-12-31`);
     const reg = d.registros?.find(r => r.id === id);
     if (!reg) {
       alert('No se encontró el registro a editar.');
@@ -1109,7 +1118,7 @@ async function asistCargarSueldos() {
   const t        = document.getElementById('tablaSueldos');
   t.innerHTML    = '<p class="text-center text-muted" style="padding:30px">Calculando...</p>';
   try {
-    const data = await fetch(`${AAPI}/sueldos?anio=${anio}&mes=${mes}&quincena=${quincena}&_=${Date.now()}`, { cache: 'no-store' }).then(r => r.json());
+    const data = await asistFetchJson(`${AAPI}/sueldos?anio=${anio}&mes=${mes}&quincena=${quincena}&_=${Date.now()}`, { cache: 'no-store' });
     window._sueldosData = data;
     if (!data.resultados?.length) { t.innerHTML = '<p class="text-center text-muted" style="padding:30px">Sin embajadores activos</p>'; return; }
     const p = data.periodo;

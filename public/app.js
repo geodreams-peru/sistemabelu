@@ -23,17 +23,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 async function verificarSesion() {
+  const kioscoExplicito = new URLSearchParams(window.location.search).get('kiosco') === '1';
   try {
     const res = await fetch('/api/auth/me');
-    if (!res.ok) { activarModoKiosco(); return; }
+    if (!res.ok) {
+      if (kioscoExplicito) activarModoKiosco();
+      else window.location.href = '/login';
+      return;
+    }
     const data = await res.json();
-    if (!data.ok)  { activarModoKiosco(); return; }
+    if (!data.ok) {
+      if (kioscoExplicito) activarModoKiosco();
+      else window.location.href = '/login';
+      return;
+    }
     usuarioActual = data.user;
     window.usuarioActual = data.user;   // accesible desde módulos cargados dinámicamente
     configurarUI();
     iniciarKeepaliveSesion();
   } catch {
-    activarModoKiosco();
+    if (kioscoExplicito) activarModoKiosco();
+    else window.location.href = '/login';
   }
 }
 
