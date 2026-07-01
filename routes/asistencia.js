@@ -1501,198 +1501,253 @@ router.get('/sueldos/descansos', authAdmin, async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+async function guardarEstadosDiaPorPeriodo({ periodo_desde, periodo_hasta, descansos = {}, feriados = {}, no_contable = {}, faltas = {} }) {
+  if (!periodo_desde || !periodo_hasta) throw new Error('Faltan fechas del período.');
+  if (typeof descansos !== 'object' || descansos === null) throw new Error('Descansos inválidos.');
+
+  await ensureSueldoAjustesColumns();
+
+  const desde = DateTime.fromISO(periodo_desde, { zone: TZ });
+  const hasta = DateTime.fromISO(periodo_hasta, { zone: TZ });
+  if (!desde.isValid || !hasta.isValid) throw new Error('Fechas inválidas.');
+  const hoy = nowLima().startOf('day');
+
+  const empIds = Array.from(new Set([
+    ...Object.keys(descansos || {}),
+    ...Object.keys(feriados || {}),
+    ...Object.keys(no_contable || {}),
+    ...Object.keys(faltas || {})
+  ])).map(id => +id).filter(Number.isFinite);
+
+  const empleados = empIds.length
+    ? await all(`SELECT id, fecha_ingreso, fecha_baja FROM empleados WHERE id IN (${empIds.map(() => '?').join(',')})`, empIds)
+    : [];
+  const empMap = new Map(empleados.map(e => [e.id, e]));
+
+  const registros = await all(
+    'SELECT empleado_id, fecha FROM registros WHERE fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL',
+    [periodo_desde, periodo_hasta]
+  );
+  const asistenciasPorEmpleado = new Map();
+  for (const r of registros) {
+    if (!asistenciasPorEmpleado.has(r.empleado_id)) asistenciasPorEmpleado.set(r.empleado_id, new Set());
+    asistenciasPorEmpleado.get(r.empleado_id).add(r.fecha);
+  }
+
+  let actualizados = 0;
+
+  for (const empleado_id of empIds) {
+    if (!Number.isFinite(empleado_id)) continue;
+    const empIdRaw = String(empleado_id);
+    const fechasDescansosRaw = descansos?.[empIdRaw] || [];
+    const fechasFeriadosRaw = feriados?.[empIdRaw] || [];
+    const fechasNoContableRaw = no_contable?.[empIdRaw] || [];
+    const fechasFaltasRaw = faltas?.[empIdRaw] || [];
+
+    const emp = empMap.get(empleado_id);
+    const periodoEmp = emp ? periodoConCortePorBaja({ desde: periodo_desde, hasta: periodo_hasta }, emp) : { desde: periodo_desde, hasta: periodo_hasta };
+    const desdeEmp = DateTime.fromISO(periodoEmp.desde, { zone: TZ });
+    const hastaEmp = DateTime.fromISO(periodoEmp.hasta, { zone: TZ });
+    const hastaCalc = hastaEmp < hoy ? hastaEmp : hoy;
+
+    const fechasDescansos = Array.isArray(fechasDescansosRaw) ? fechasDescansosRaw : [];
+    const fechasFeriados = Array.isArray(fechasFeriadosRaw) ? fechasFeriadosRaw : [];
+    const fechasNoContable = Array.isArray(fechasNoContableRaw) ? fechasNoContableRaw : [];
+    const fechasFaltas = Array.isArray(fechasFaltasRaw) ? fechasFaltasRaw : [];
+
+    const validasDescansos = fechasDescansos
+      .filter(f => typeof f === 'string')
+      .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
+      .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
+
+    const validasFeriados = fechasFeriados
+      .filter(f => typeof f === 'string')
+      .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
+      .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
+
+    const validasNoContable = fechasNoContable
+      .filter(f => typeof f === 'string')
+      .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
+      .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
+
+    const validasFaltas = fechasFaltas
+      .filter(f => typeof f === 'string')
+      .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
+      .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
+
+    const noContableSet = new Set(validasNoContable);
+    const feriadosSet = new Set(validasFeriados.filter(f => !noContableSet.has(f)));
+    let fechasDescanso = new Set(validasDescansos.filter(f => !noContableSet.has(f) && !feriadosSet.has(f)));
+    const fechasFalta = new Set(validasFaltas.filter(f => !noContableSet.has(f) && !feriadosSet.has(f) && !fechasDescanso.has(f)));
+    const asistencias = asistenciasPorEmpleado.get(empleado_id) || new Set();
+
+    const fechasAsistencia = new Set();
+    for (const f of asistencias) {
+      if (!noContableSet.has(f)) fechasAsistencia.add(f);
+    }
+    for (const f of feriadosSet) {
+      if (!noContableSet.has(f)) fechasAsistencia.add(f);
+    }
+
+    const descansoNormalizado = new Set(fechasDescanso);
+    const semanaInicio = desdeEmp.minus({ days: weekday(desdeEmp) });
+    for (let lun = semanaInicio; lun <= hastaCalc; lun = lun.plus({ days: 7 })) {
+      const diasSem = [];
+      for (let i = 0; i < 7; i++) {
+        const d = lun.plus({ days: i });
+        if (d < desdeEmp || d > hastaCalc) continue;
+        const f = d.toISODate();
+        if (noContableSet.has(f)) continue;
+        diasSem.push(f);
+      }
+      if (diasSem.length !== 7) continue;
+
+      const trabSem = diasSem.filter(f => fechasAsistencia.has(f)).length;
+      const ausentesSem = diasSem.filter(f => !fechasAsistencia.has(f));
+
+      for (const f of ausentesSem) descansoNormalizado.delete(f);
+
+      if (trabSem === 6) {
+        const forzadaFalta = ausentesSem.some(f => fechasFalta.has(f));
+        if (!forzadaFalta) {
+          const manual = ausentesSem.find(f => fechasDescanso.has(f) && !fechasFalta.has(f));
+          const elegida = manual || ausentesSem.find(f => !fechasFalta.has(f));
+          if (elegida) descansoNormalizado.add(elegida);
+        }
+      }
+    }
+    fechasDescanso = descansoNormalizado;
+
+    let descansosCount = 0;
+    let faltasCount = 0;
+    const fechasContadas = new Set();
+
+    for (let lun = semanaInicio; lun <= hastaCalc; lun = lun.plus({ days: 7 })) {
+      const diasSem = [];
+      for (let i = 0; i < 7; i++) {
+        const d = lun.plus({ days: i });
+        if (d < desdeEmp || d > hastaCalc) continue;
+        const f = d.toISODate();
+        if (noContableSet.has(f)) continue;
+        diasSem.push(f);
+      }
+      if (diasSem.length !== 7) continue;
+
+      diasSem.forEach(f => fechasContadas.add(f));
+      const trabSem = diasSem.filter(f => fechasAsistencia.has(f)).length;
+
+      if (trabSem === 7) continue;
+      if (trabSem === 6) {
+        const ausente = diasSem.find(f => !fechasAsistencia.has(f));
+        if (ausente && !fechasFalta.has(ausente) && fechasDescanso.has(ausente)) descansosCount += 1;
+        else faltasCount += 1;
+        continue;
+      }
+      faltasCount += Math.max(0, 6 - trabSem);
+    }
+
+    for (let d = desdeEmp; d <= hastaCalc; d = d.plus({ days: 1 })) {
+      const f = d.toISODate();
+      if (fechasContadas.has(f)) continue;
+      if (noContableSet.has(f)) continue;
+      if (fechasAsistencia.has(f)) continue;
+      if (fechasFalta.has(f)) {
+        faltasCount++;
+        continue;
+      }
+      if (fechasDescanso.has(f)) descansosCount++;
+      else faltasCount++;
+    }
+
+    const fechasJson = JSON.stringify([...fechasDescanso].sort());
+    const feriadosJson = JSON.stringify([...feriadosSet].sort());
+    const noContableJson = JSON.stringify([...noContableSet].sort());
+    const faltasJson = JSON.stringify([...fechasFalta].sort());
+    const usaOverrideManual = fechasDescanso.size > 0 || fechasFalta.size > 0;
+    const descansosOverride = usaOverrideManual ? descansosCount : null;
+    const faltasOverride = usaOverrideManual ? faltasCount : null;
+    const feriadosCount = feriadosSet.size;
+
+    const existe = await get(
+      'SELECT id FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
+      [empleado_id, periodo_desde, periodo_hasta]
+    );
+    if (existe) {
+      await run(
+        'UPDATE sueldo_ajustes SET descansos_fechas=?,feriados_fechas=?,no_contable_fechas=?,faltas_fechas=?,descansos_override=?,faltas_override=?,feriados=?,updated_at=? WHERE id=?',
+        [fechasJson, feriadosJson, noContableJson, faltasJson, descansosOverride, faltasOverride, feriadosCount, ahoraSQL(), existe.id]
+      );
+    } else {
+      await run(
+        'INSERT INTO sueldo_ajustes (empleado_id,periodo_desde,periodo_hasta,descansos_fechas,feriados_fechas,no_contable_fechas,faltas_fechas,descansos_override,faltas_override,feriados,prestamo,bono,nota,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [empleado_id, periodo_desde, periodo_hasta, fechasJson, feriadosJson, noContableJson, faltasJson, descansosOverride, faltasOverride, feriadosCount, 0, 0, '', ahoraSQL()]
+      );
+    }
+
+    actualizados += 1;
+  }
+
+  return { actualizados, empleados: empIds.length };
+}
+
 router.post('/sueldos/descansos', authAdmin, async (req, res) => {
   try {
     const { periodo_desde, periodo_hasta, descansos = {}, feriados = {}, no_contable = {}, faltas = {} } = req.body;
-    if (!periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan fechas del período.' });
-    if (typeof descansos !== 'object' || descansos === null) return res.status(400).json({ error: 'Descansos inválidos.' });
+    const out = await guardarEstadosDiaPorPeriodo({ periodo_desde, periodo_hasta, descansos, feriados, no_contable, faltas });
+    res.json({ ok: true, ...out });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
-    // Garantizar que las columnas existan (migración robusta para DBs viejas)
+router.post('/sueldos/reparar-regla-semanal', authAdmin, async (req, res) => {
+  try {
+    const { periodo_desde, periodo_hasta, empleado_id = null } = req.body || {};
+    if (!periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan fechas del período.' });
     await ensureSueldoAjustesColumns();
 
-    const desde = DateTime.fromISO(periodo_desde, { zone: TZ });
-    const hasta = DateTime.fromISO(periodo_hasta, { zone: TZ });
-    if (!desde.isValid || !hasta.isValid) return res.status(400).json({ error: 'Fechas inválidas.' });
-    const hoy = nowLima().startOf('day');
+    const params = [periodo_desde, periodo_hasta];
+    let whereEmp = '';
+    if (empleado_id !== null && empleado_id !== undefined && String(empleado_id).trim() !== '') {
+      whereEmp = ' AND empleado_id=?';
+      params.push(+empleado_id);
+    }
 
-    // Cargar datos de los empleados enviados para respetar fechas de ingreso/baja.
-    const empIds = Array.from(new Set([
-      ...Object.keys(descansos || {}),
-      ...Object.keys(feriados || {}),
-      ...Object.keys(no_contable || {})
-    ])).map(id => +id).filter(Number.isFinite);
-    const empleados = empIds.length
-      ? await all(`SELECT id, fecha_ingreso, fecha_baja FROM empleados WHERE id IN (${empIds.map(() => '?').join(',')})`, empIds)
-      : [];
-    const empMap = new Map(empleados.map(e => [e.id, e]));
-
-    // Cargar asistencias de todo el período de una sola vez para recalcular faltas.
-    const registros = await all(
-      'SELECT empleado_id, fecha FROM registros WHERE fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL',
-      [periodo_desde, periodo_hasta]
+    const rows = await all(
+      `SELECT empleado_id, descansos_fechas, feriados_fechas, no_contable_fechas, faltas_fechas
+       FROM sueldo_ajustes
+       WHERE periodo_desde=? AND periodo_hasta=?${whereEmp}`,
+      params
     );
-    const asistenciasPorEmpleado = new Map();
-    for (const r of registros) {
-      if (!asistenciasPorEmpleado.has(r.empleado_id)) asistenciasPorEmpleado.set(r.empleado_id, new Set());
-      asistenciasPorEmpleado.get(r.empleado_id).add(r.fecha);
+
+    const descansos = {};
+    const feriados = {};
+    const no_contable = {};
+    const faltas = {};
+
+    for (const r of rows) {
+      const empKey = String(r.empleado_id);
+      try {
+        const parsed = JSON.parse(r.descansos_fechas || '[]');
+        descansos[empKey] = Array.isArray(parsed) ? parsed : [];
+      } catch { descansos[empKey] = []; }
+      try {
+        const parsed = JSON.parse(r.feriados_fechas || '[]');
+        feriados[empKey] = Array.isArray(parsed) ? parsed : [];
+      } catch { feriados[empKey] = []; }
+      try {
+        const parsed = JSON.parse(r.no_contable_fechas || '[]');
+        no_contable[empKey] = Array.isArray(parsed) ? parsed : [];
+      } catch { no_contable[empKey] = []; }
+      try {
+        const parsed = JSON.parse(r.faltas_fechas || '[]');
+        faltas[empKey] = Array.isArray(parsed) ? parsed : [];
+      } catch { faltas[empKey] = []; }
     }
 
-    for (const empleado_id of empIds) {
-      if (!Number.isFinite(empleado_id)) continue;
-      const empIdRaw = String(empleado_id);
-      const fechasDescansosRaw = descansos?.[empIdRaw] || [];
-      const fechasFeriadosRaw = feriados?.[empIdRaw] || [];
-      const fechasNoContableRaw = no_contable?.[empIdRaw] || [];
-      const fechasFaltasRaw = faltas?.[empIdRaw] || [];
-
-      const emp = empMap.get(empleado_id);
-      const periodoEmp = emp ? periodoConCortePorBaja({ desde: periodo_desde, hasta: periodo_hasta }, emp) : { desde: periodo_desde, hasta: periodo_hasta };
-      const desdeEmp = DateTime.fromISO(periodoEmp.desde, { zone: TZ });
-      const hastaEmp = DateTime.fromISO(periodoEmp.hasta, { zone: TZ });
-      const hastaCalc = hastaEmp < hoy ? hastaEmp : hoy;
-
-      const fechasDescansos = Array.isArray(fechasDescansosRaw) ? fechasDescansosRaw : [];
-      const fechasFeriados = Array.isArray(fechasFeriadosRaw) ? fechasFeriadosRaw : [];
-      const fechasNoContable = Array.isArray(fechasNoContableRaw) ? fechasNoContableRaw : [];
-      const fechasFaltas = Array.isArray(fechasFaltasRaw) ? fechasFaltasRaw : [];
-
-      const validasDescansos = fechasDescansos
-        .filter(f => typeof f === 'string')
-        .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
-        .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
-
-      const validasFeriados = fechasFeriados
-        .filter(f => typeof f === 'string')
-        .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
-        .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
-
-      const validasNoContable = fechasNoContable
-        .filter(f => typeof f === 'string')
-        .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
-        .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
-
-      const validasFaltas = fechasFaltas
-        .filter(f => typeof f === 'string')
-        .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
-        .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
-
-      const noContableSet = new Set(validasNoContable);
-      const feriadosSet = new Set(validasFeriados.filter(f => !noContableSet.has(f)));
-      let fechasDescanso = new Set(validasDescansos.filter(f => !noContableSet.has(f) && !feriadosSet.has(f)));
-      const fechasFalta = new Set(validasFaltas.filter(f => !noContableSet.has(f) && !feriadosSet.has(f) && !fechasDescanso.has(f)));
-      const asistencias = asistenciasPorEmpleado.get(empleado_id) || new Set();
-
-      // Normalizar descansos por regla semanal acordada:
-      // - Semana completa con 6 trabajados: 1 descanso pagado (salvo falta forzada manual)
-      // - Semana completa con 5 o menos: no hay descanso pagado
-      // Esto evita que un descanso manual quede pagado cuando en esa semana hubo otra falta.
-      const fechasAsistencia = new Set();
-      for (const f of asistencias) {
-        if (!noContableSet.has(f)) fechasAsistencia.add(f);
-      }
-      for (const f of feriadosSet) {
-        if (!noContableSet.has(f)) fechasAsistencia.add(f);
-      }
-
-      const descansoNormalizado = new Set(fechasDescanso);
-      const semanaInicio = desdeEmp.minus({ days: weekday(desdeEmp) });
-      for (let lun = semanaInicio; lun <= hastaCalc; lun = lun.plus({ days: 7 })) {
-        const diasSem = [];
-        for (let i = 0; i < 7; i++) {
-          const d = lun.plus({ days: i });
-          if (d < desdeEmp || d > hastaCalc) continue;
-          const f = d.toISODate();
-          if (noContableSet.has(f)) continue;
-          diasSem.push(f);
-        }
-        if (diasSem.length !== 7) continue;
-
-        const trabSem = diasSem.filter(f => fechasAsistencia.has(f)).length;
-        const ausentesSem = diasSem.filter(f => !fechasAsistencia.has(f));
-
-        for (const f of ausentesSem) descansoNormalizado.delete(f);
-
-        if (trabSem === 6) {
-          const forzadaFalta = ausentesSem.some(f => fechasFalta.has(f));
-          if (!forzadaFalta) {
-            const manual = ausentesSem.find(f => fechasDescanso.has(f) && !fechasFalta.has(f));
-            const elegida = manual || ausentesSem.find(f => !fechasFalta.has(f));
-            if (elegida) descansoNormalizado.add(elegida);
-          }
-        }
-      }
-      fechasDescanso = descansoNormalizado;
-
-      let descansosCount = 0;
-      let faltasCount = 0;
-      const fechasContadas = new Set();
-
-      // Semanas completas: misma regla de cálculo que la liquidación automática.
-      for (let lun = semanaInicio; lun <= hastaCalc; lun = lun.plus({ days: 7 })) {
-        const diasSem = [];
-        for (let i = 0; i < 7; i++) {
-          const d = lun.plus({ days: i });
-          if (d < desdeEmp || d > hastaCalc) continue;
-          const f = d.toISODate();
-          if (noContableSet.has(f)) continue;
-          diasSem.push(f);
-        }
-        if (diasSem.length !== 7) continue;
-
-        diasSem.forEach(f => fechasContadas.add(f));
-        const trabSem = diasSem.filter(f => fechasAsistencia.has(f)).length;
-
-        if (trabSem === 7) continue;
-        if (trabSem === 6) {
-          const ausente = diasSem.find(f => !fechasAsistencia.has(f));
-          if (ausente && !fechasFalta.has(ausente) && fechasDescanso.has(ausente)) descansosCount += 1;
-          else faltasCount += 1;
-          continue;
-        }
-        faltasCount += Math.max(0, 6 - trabSem);
-      }
-
-      // Días fuera de semanas completas (bordes de período): conteo directo por etiqueta.
-      for (let d = desdeEmp; d <= hastaCalc; d = d.plus({ days: 1 })) {
-        const f = d.toISODate();
-        if (fechasContadas.has(f)) continue;
-        if (noContableSet.has(f)) continue;
-        if (fechasAsistencia.has(f)) continue;
-        if (fechasFalta.has(f)) {
-          faltasCount++;
-          continue;
-        }
-        if (fechasDescanso.has(f)) descansosCount++;
-        else faltasCount++;
-      }
-
-      const fechasJson = JSON.stringify([...fechasDescanso].sort());
-      const feriadosJson = JSON.stringify([...feriadosSet].sort());
-      const noContableJson = JSON.stringify([...noContableSet].sort());
-      const faltasJson = JSON.stringify([...fechasFalta].sort());
-      const usaOverrideManual = fechasDescanso.size > 0 || fechasFalta.size > 0;
-      const descansosOverride = usaOverrideManual ? descansosCount : null;
-      const faltasOverride = usaOverrideManual ? faltasCount : null;
-      const feriadosCount = feriadosSet.size;
-
-      const existe = await get(
-        'SELECT id FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
-        [empleado_id, periodo_desde, periodo_hasta]
-      );
-      if (existe) {
-        await run(
-          'UPDATE sueldo_ajustes SET descansos_fechas=?,feriados_fechas=?,no_contable_fechas=?,faltas_fechas=?,descansos_override=?,faltas_override=?,feriados=?,updated_at=? WHERE id=?',
-          [fechasJson, feriadosJson, noContableJson, faltasJson, descansosOverride, faltasOverride, feriadosCount, ahoraSQL(), existe.id]
-        );
-      } else {
-        await run(
-          'INSERT INTO sueldo_ajustes (empleado_id,periodo_desde,periodo_hasta,descansos_fechas,feriados_fechas,no_contable_fechas,faltas_fechas,descansos_override,faltas_override,feriados,prestamo,bono,nota,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-          [empleado_id, periodo_desde, periodo_hasta, fechasJson, feriadosJson, noContableJson, faltasJson, descansosOverride, faltasOverride, feriadosCount, 0, 0, '', ahoraSQL()]
-        );
-      }
-    }
-    res.json({ ok: true });
-  } catch (e) { res.status(500).json({ error: e.message }); }
+    const out = await guardarEstadosDiaPorPeriodo({ periodo_desde, periodo_hasta, descansos, feriados, no_contable, faltas });
+    res.json({ ok: true, reparados: rows.length, ...out });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // ════════════════ AUDITORÍA ════════════════
