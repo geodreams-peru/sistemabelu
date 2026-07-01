@@ -740,12 +740,15 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
           // Semana parcial de inicio: revisar si la quincena anterior ya consumió
           // el descanso de esta semana mirando los días previos a `desde`.
           let preAusencias = 0;
+          let preTrabajos = 0;
           for (let d = lun; d < desde; d = d.plus({ days: 1 })) {
             // Días anteriores al ingreso del empleado no consumen descanso
             if (fechaIngresoEmp && d < fechaIngresoEmp) continue;
             if (!fechasContextSet.has(d.toISODate())) preAusencias++;
+            else preTrabajos++;
           }
-          if (preAusencias >= 1) {
+          const descansoConsumidoPrevio = preAusencias >= 1 && preTrabajos >= 1;
+          if (descansoConsumidoPrevio) {
             // Descanso semanal ya asignado a la quincena anterior → todas faltas
             faltasAuto += ausenciasParcial;
           } else {

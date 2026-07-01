@@ -1740,6 +1740,13 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   let calFilas = '';
   let filaCal = '';
   let col = 0;
+  const primerDiaSemCal = (new Date(anioCal, mesCal, desdeDia).getDay() + 6) % 7; // 0=Lun..6=Dom
+
+  for (let i = 0; i < primerDiaSemCal; i++) {
+    filaCal += '<td class="pd"></td>';
+    col++;
+  }
+
   for (let d = desdeDia; d <= hastaDia; d++) {
     const fecha = `${anioCal}-${String(mesCal + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const reg = registrosPorFecha.get(fecha);
@@ -1765,7 +1772,13 @@ async function asistImprimirBoleta(empId, desde, hasta) {
     col++;
     if (col === 7) { calFilas += `<tr>${filaCal}</tr>`; filaCal = ''; col = 0; }
   }
-  if (col > 0) calFilas += `<tr>${filaCal}</tr>`;
+  if (col > 0) {
+    while (col < 7) {
+      filaCal += '<td class="pd"></td>';
+      col++;
+    }
+    calFilas += `<tr>${filaCal}</tr>`;
+  }
 
   const sueldoNeto = +resumen?.sueldo || 0;
 
