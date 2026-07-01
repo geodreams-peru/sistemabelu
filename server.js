@@ -7,7 +7,92 @@ const sqlite3 = require('sqlite3').verbose();
 const { dbPath, ensureRuntimeDirs, logPaths, UPLOADS_DIR, DATA_DIR } = require('./lib/paths');
 const { shouldMigrate } = require('./lib/db');
 
-const DEPLOY_VERSION = '2026-07-01-data-read-diagnostic-v3';
+const DEPLOY_VERSION = '2026-07-01-data-read-diagnostic-v4';
+
+function uniquePaths(list) {
+  return [...new Set((list || []).filter(Boolean))];
+}
+
+function inspectAsistenciaDbFile(dbFilePath) {
+  return new Promise((resolve) => {
+    try {
+      const exists = fs.existsSync(dbFilePath);
+      const size = exists ? fs.statSync(dbFilePath).size : 0;
+      if (!exists || size <= 0) {
+        return resolve({ path: dbFilePath, exists, size, empleadosTotal: null, empleadosActivos: null });
+      }
+
+      const db = new sqlite3.Database(dbFilePath, sqlite3.OPEN_READONLY, (openErr) => {
+        if (openErr) {
+          return resolve({ path: dbFilePath, exists, size, error: openErr.message, empleadosTotal: null, empleadosActivos: null });
+        }
+
+        const q = (sql) => new Promise((res, rej) => db.get(sql, [], (err, row) => err ? rej(err) : res(row || {})));
+        (async () => {
+          try {
+            const t = await q('SELECT COUNT(*) AS n FROM empleados');
+            const a = await q("SELECT COUNT(*) AS n FROM empleados WHERE COALESCE(NULLIF(LOWER(TRIM(CAST(activo AS TEXT))),''),'1') IN ('1','true','t','si','s','y','yes')");
+            resolve({
+              path: dbFilePath,
+              exists,
+              size,
+              empleadosTotal: t.n || 0,
+              empleadosActivos: a.n || 0
+            });
+          } catch (e) {
+            resolve({ path: dbFilePath, exists, size, error: e.message, empleadosTotal: null, empleadosActivos: null });
+          } finally {
+            db.close();
+          }
+        })();
+      });
+    } catch (e) {
+      resolve({ path: dbFilePath, exists: false, size: 0, error: e.message, empleadosTotal: null, empleadosActivos: null });
+    }
+  });
+}
+
+function buildAsistenciaCandidateFiles(primaryDataDir) {
+  const cwd = process.cwd();
+  const d0 = __dirname;
+  const p1 = path.resolve(d0, '..');
+  const p2 = path.resolve(d0, '..', '..');
+  const p3 = path.resolve(d0, '..', '..', '..');
+  const home = process.env.HOME || null;
+
+  const baseDirs = uniquePaths([
+    primaryDataDir,
+    cwd,
+    d0,
+    p1,
+    p2,
+    p3,
+    home,
+    home ? path.join(home, 'belu_data') : null,
+    home ? path.join(home, 'data') : null,
+    home ? path.join(home, 'domains') : null
+  ]);
+
+  const candidateDirs = [];
+  for (const b of baseDirs) {
+    candidateDirs.push(b);
+    candidateDirs.push(path.join(b, 'data'));
+    candidateDirs.push(path.join(b, 'belu_data'));
+    candidateDirs.push(path.join(b, 'db'));
+
+    try {
+      const children = fs.readdirSync(b, { withFileTypes: true })
+        .filter(d => d.isDirectory() && /data|db|belu|backup|nodejs/i.test(d.name))
+        .map(d => path.join(b, d.name));
+      for (const c of children) {
+        candidateDirs.push(c);
+        candidateDirs.push(path.join(c, 'data'));
+      }
+    } catch (_) {}
+  }
+
+  return uniquePaths(candidateDirs).map(dir => path.join(dir, 'asistencia.db'));
+}
 
 function bootLog(location, message, data, hypothesisId = 'H503') {
   const entry = { sessionId: '61705f', hypothesisId, location, message, data, timestamp: Date.now() };
@@ -196,6 +281,7 @@ app.get('/api/health', async (_req, res) => {
   let publicFiles = null;
   let erroresSchema = null;
   let asistenciaDbInfo = null;
+  let asistenciaCandidates = [];
   try { dataFiles = fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : null; } catch (e) { dataFiles = { error: e.message }; }
   try { publicFiles = fs.existsSync(PUBLIC_DIR) ? fs.readdirSync(PUBLIC_DIR) : null; } catch (e) { publicFiles = { error: e.message }; }
   try {
@@ -205,33 +291,29 @@ app.get('/api/health', async (_req, res) => {
   }
 
   try {
-    const exists = fs.existsSync(asisPath);
-    const size = exists ? fs.statSync(asisPath).size : 0;
-    let empleadosActivos = null;
-    let empleadosTotal = null;
-
-    if (exists && size > 0) {
-      const db = new sqlite3.Database(asisPath, sqlite3.OPEN_READONLY);
-      const q = (sql) => new Promise((resolve, reject) => db.get(sql, [], (err, row) => err ? reject(err) : resolve(row || {})));
-      try {
-        const t = await q('SELECT COUNT(*) AS n FROM empleados');
-        const a = await q("SELECT COUNT(*) AS n FROM empleados WHERE COALESCE(NULLIF(LOWER(TRIM(CAST(activo AS TEXT))),''),'1') IN ('1','true','t','si','s','y','yes')");
-        empleadosTotal = t.n || 0;
-        empleadosActivos = a.n || 0;
-      } finally {
-        db.close();
-      }
-    }
-
-    asistenciaDbInfo = {
-      path: asisPath,
-      exists,
-      size,
-      empleadosTotal,
-      empleadosActivos
-    };
+    asistenciaDbInfo = await inspectAsistenciaDbFile(asisPath);
   } catch (e) {
     asistenciaDbInfo = { error: e.message, path: asisPath };
+  }
+
+  try {
+    const files = buildAsistenciaCandidateFiles(dataDir);
+    const inspected = [];
+    for (const f of files) {
+      const info = await inspectAsistenciaDbFile(f);
+      if (info.exists || (info.error && !/SQLITE_CANTOPEN|ENOENT/i.test(info.error))) {
+        inspected.push(info);
+      }
+    }
+    asistenciaCandidates = inspected
+      .sort((a, b) => {
+        const aScore = (a.empleadosTotal || 0) * 100000 + (a.size || 0);
+        const bScore = (b.empleadosTotal || 0) * 100000 + (b.size || 0);
+        return bScore - aScore;
+      })
+      .slice(0, 10);
+  } catch (e) {
+    asistenciaCandidates = [{ error: e.message }];
   }
 
   res.json({
@@ -253,6 +335,7 @@ app.get('/api/health', async (_req, res) => {
     uploadsDirFromEnv: process.env.UPLOADS_DIR || null,
     dataFiles,
     asistenciaDbInfo,
+    asistenciaCandidates,
     uploadsDirExists: fs.existsSync(uploadsDir),
     publicFiles,
     erroresSchema,
