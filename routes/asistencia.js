@@ -135,8 +135,28 @@ async function safeAddColumn(sql) {
   try {
     await run(sql);
   } catch (e) {
-    if (!/duplicate column name/i.test(e.message)) throw e;
+    // Ignorar errores de columna ya existente (distintas versiones de SQLite usan mensajes diferentes)
+    if (!/duplicate column name|already exists/i.test(e.message)) throw e;
   }
+}
+
+let _sueldoAjustesSchemaReady = null;
+async function ensureSueldoAjustesColumns() {
+  if (_sueldoAjustesSchemaReady) return _sueldoAjustesSchemaReady;
+  _sueldoAjustesSchemaReady = (async () => {
+    // Verificar columnas via PRAGMA (más fiable que atrapar errores de ALTER TABLE)
+    const cols = await all(`PRAGMA table_info(sueldo_ajustes)`);
+    const names = new Set(cols.map(c => c.name));
+    if (!names.has('descansos_override'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`);
+    if (!names.has('descansos_fechas'))           await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`);
+    if (!names.has('faltas_override'))            await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN faltas_override INTEGER DEFAULT NULL`);
+    if (!names.has('tardanzas_override'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN tardanzas_override INTEGER DEFAULT NULL`);
+    if (!names.has('nota'))                       await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN nota TEXT DEFAULT ''`);
+    if (!names.has('dias_adicionales_override'))  await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_adicionales_override INTEGER DEFAULT NULL`);
+    if (!names.has('dom_monto_override'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dom_monto_override FLOAT DEFAULT NULL`);
+    if (!names.has('onp_override'))               await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN onp_override BOOLEAN DEFAULT NULL`);
+  })().catch(err => { _sueldoAjustesSchemaReady = null; throw err; });
+  return _sueldoAjustesSchemaReady;
 }
 
 async function ensureConfigSchema() {
@@ -1318,6 +1338,7 @@ router.post('/sueldos/ajuste', authAdmin, async (req, res) => {
   try {
     const { empleado_id, periodo_desde, periodo_hasta, feriados = 0, faltas_override = null, tardanzas_override = null, descansos_override = null, prestamo = 0, bono = 0, nota = '', dias_adicionales_override = null, dom_monto_override = null, onp_override = null } = req.body;
     if (!empleado_id || !periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan campos.' });
+    await ensureSueldoAjustesColumns();
 
     const faltasOverride = faltas_override === null || faltas_override === '' || faltas_override === undefined
       ? null
@@ -1357,6 +1378,7 @@ router.get('/sueldos/descansos', authAdmin, async (req, res) => {
   try {
     const { periodo_desde, periodo_hasta } = req.query;
     if (!periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan fechas del período.' });
+    await ensureSueldoAjustesColumns();
     const rows = await all(
       'SELECT empleado_id, descansos_fechas FROM sueldo_ajustes WHERE periodo_desde=? AND periodo_hasta=?',
       [periodo_desde, periodo_hasta]
@@ -1378,10 +1400,8 @@ router.post('/sueldos/descansos', authAdmin, async (req, res) => {
     if (!periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan fechas del período.' });
     if (typeof descansos !== 'object' || descansos === null) return res.status(400).json({ error: 'Descansos inválidos.' });
 
-    // Garantizar que la columna descansos_fechas exista (migración lazy para DBs viejas)
-    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`);
-    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`);
-    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN faltas_override INTEGER DEFAULT NULL`);
+    // Garantizar que las columnas existan (migración robusta para DBs viejas)
+    await ensureSueldoAjustesColumns();
 
     const desde = DateTime.fromISO(periodo_desde, { zone: TZ });
     const hasta = DateTime.fromISO(periodo_hasta, { zone: TZ });
