@@ -427,6 +427,7 @@ function normalizeEmailPassword(value) {
 }
 
 async function buildBoletaPayload(empId, desde, hasta) {
+  await ensureSueldoAjustesColumns();
   const cfg = await get('SELECT * FROM configuracion WHERE id=1') || {};
   const valores = getValoresSalariales(cfg);
   const descTardanza = +cfg.descuento_tardanza || 2;
