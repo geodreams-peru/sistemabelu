@@ -799,24 +799,30 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
           descansosAuto += 1;
           faltasAuto += Math.max(0, ausenciasParcial - 1);
         } else if (semanaParcialInicio) {
-          // Semana parcial de inicio: revisar si la quincena anterior ya consumió
-          // el descanso de esta semana mirando los días previos a `desde`.
+          // Semana parcial de inicio: contar trabajo total en la semana completa
+          // (días previos al período + días del período) para determinar si se
+          // ganó el descanso semanal. Regla: se necesitan >= 6 días trabajados
+          // en toda la semana para tener derecho a 1 descanso pagado.
           let preAusencias = 0;
           let preTrabajos = 0;
           for (let d = lun; d < desde; d = d.plus({ days: 1 })) {
-            // Días anteriores al ingreso del empleado no consumen descanso
             if (fechaIngresoEmp && d < fechaIngresoEmp) continue;
             if (!fechasContextSet.has(d.toISODate())) preAusencias++;
             else preTrabajos++;
           }
-          const descansoConsumidoPrevio = preAusencias >= 1 && preTrabajos >= 1;
-          if (descansoConsumidoPrevio) {
-            // Descanso semanal ya asignado a la quincena anterior → todas faltas
+          const totalTrabajados = trabParcial + preTrabajos;
+          if (totalTrabajados < 6) {
+            // No se ganaron 6 días en la semana → todas las ausencias son faltas.
             faltasAuto += ausenciasParcial;
           } else {
-            // Descanso disponible → 1er ausencia = descanso, resto = faltas
-            descansosAuto += 1;
-            faltasAuto += Math.max(0, ausenciasParcial - 1);
+            // Se ganó el descanso: verificar si ya fue asignado a la quincena anterior.
+            const descansoConsumidoPrevio = preAusencias >= 1 && preTrabajos >= 1;
+            if (descansoConsumidoPrevio) {
+              faltasAuto += ausenciasParcial;
+            } else {
+              descansosAuto += 1;
+              faltasAuto += Math.max(0, ausenciasParcial - 1);
+            }
           }
         }
       }
