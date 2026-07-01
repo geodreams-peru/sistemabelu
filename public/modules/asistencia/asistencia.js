@@ -1239,8 +1239,10 @@ async function asistAbrirModalCalendario(empId, desde, hasta) {
 
 function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   const body = document.getElementById('sueldoCalBody');
-  const { registros, descansosFechas } = boleta;
+  const { registros, descansosFechas, feriadosFechas, noContableFechas } = boleta;
   const fechasDescanso = new Set((descansosFechas || []).filter(f => typeof f === 'string'));
+  const fechasFeriado = new Set((feriadosFechas || []).filter(f => typeof f === 'string'));
+  const fechasNoContable = new Set((noContableFechas || []).filter(f => typeof f === 'string'));
   const registrosPorFecha = new Map(registros.map(r => [r.fecha, r]));
 
   // Mostrar el mes completo: determinar primer y último día del mes
@@ -1254,7 +1256,15 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   const hoyStr = hoy.toISOString().slice(0, 10);
 
   // Calcular auto-descansos para el mes completo (misma lógica que impresión)
-  const autoDescansos = asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha, fechasDescanso });
+  const autoDescansos = asistCalcularAutoDescansosMes({
+    anio,
+    mes,
+    ultimoDia,
+    registrosPorFecha,
+    fechasDescanso,
+    fechasFeriado,
+    fechasNoContable
+  });
 
   // Obtener día de la semana del día 1 (0=Dom, 1=Lun, ... 6=Sáb)
   const primerDiaSem = (new Date(anio, mes, 1).getDay() + 6) % 7; // 0=Lun, 6=Dom
@@ -1263,8 +1273,10 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   const makeCelda = (dia) => {
     const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
     const reg = registrosPorFecha.get(fecha);
+    const esNoContable = fechasNoContable.has(fecha);
+    const esFeriado = !esNoContable && fechasFeriado.has(fecha);
     const esDescanso = fechasDescanso.has(fecha);
-    const esAutoDesc = !esDescanso && autoDescansos.has(fecha);
+    const esAutoDesc = !esNoContable && !esFeriado && !esDescanso && autoDescansos.has(fecha);
     const esFuturo = fecha > hoyStr;
     const esHoy = fecha === hoyStr;
     // Determinar si este día está dentro de la quincena seleccionada
@@ -1277,13 +1289,19 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
     let cls = '';
     if (!enQuincena) cls += ' sueldo-cal-fuera';
     if (esFuturo) cls += ' sueldo-cal-futuro';
+    if (esNoContable) cls += ' sueldo-cal-no-contable';
+    if (esFeriado) cls += ' sueldo-cal-feriado';
     if (esDescanso || esAutoDesc) cls += ' sueldo-cal-descanso';
-    if (!reg && !esDescanso && !esAutoDesc && !esFuturo) cls += ' sueldo-cal-falta';
+    if (!reg && !esNoContable && !esFeriado && !esDescanso && !esAutoDesc && !esFuturo) cls += ' sueldo-cal-falta';
     if (esHoy) cls += ' sueldo-cal-hoy';
     if (esCorte) cls += ' sueldo-cal-corte';
 
     let contenido = `<div class="sueldo-cal-num">${dia}</div>`;
-    if (esDescanso) {
+    if (esNoContable) {
+      contenido += `<div class="sueldo-cal-estado" style="color:#7c3aed">No contable</div>`;
+    } else if (esFeriado) {
+      contenido += `<div class="sueldo-cal-estado" style="color:#0369a1">Feriado</div>`;
+    } else if (esDescanso) {
       contenido += `<div class="sueldo-cal-estado descanso">Descanso</div>`;
     } else if (esAutoDesc) {
       contenido += `<div class="sueldo-cal-estado descanso">Descanso*</div>`;
@@ -1304,14 +1322,18 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
       if (horas > 0 && horas < 8) {
         contenido += `<div class="sueldo-cal-estado parcial">${horas}h</div>`;
       }
-    } else if (!esFuturo && !esDescanso && !esAutoDesc) {
+    } else if (!esFuturo && !esNoContable && !esFeriado && !esDescanso && !esAutoDesc) {
       contenido += `<div class="sueldo-cal-estado falta">Falta</div>`;
     }
 
-    // Doble clic para marcar descanso/falta (solo en días de la quincena actual)
-    const esDescActual = (esDescanso || esAutoDesc) ? 1 : 0;
+    // Doble clic para marcar estado diario (solo en días de la quincena actual)
+    const estadoActual = esNoContable
+      ? 'no_contable'
+      : esFeriado
+        ? 'feriado'
+        : ((esDescanso || esAutoDesc) ? 'descanso' : 'falta');
     const dblClickHandler = enQuincena
-      ? `asistAbrirMiniModalDia('${fecha}', ${esDescActual});event.stopPropagation()`
+      ? `asistAbrirMiniModalDia('${fecha}', '${estadoActual}');event.stopPropagation()`
       : '';
 
     return `<td class="${cls}"${dblClickHandler ? ` ondblclick="${dblClickHandler}"` : ''} style="cursor:${enQuincena ? 'pointer' : 'default'}">${contenido}</td>`;
@@ -1352,17 +1374,23 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
       <span style="color:var(--danger)">✗ Falta</span>
       <span style="color:#2f855a">● Descanso</span>
       <span style="color:#166534">● Descanso* (1°/semana)</span>
+      <span style="color:#0369a1">◆ Feriado</span>
+      <span style="color:#7c3aed">◆ No contable</span>
       <span style="color:var(--info)">⏱ &lt;8h</span>
       <span style="font-style:italic">↔ doble clic</span>
     </div>
     <div class="sueldo-cal-mini-overlay hide" id="sueldoMiniModal" onclick="if(event.target===this) asistCerrarMiniModalDia()">
       <div class="sueldo-cal-mini-card" id="sueldoMiniCard">
         <div style="font-size:.8em;color:var(--text-muted);margin-bottom:8px" id="sueldoMiniFecha">—</div>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-sm" style="background:rgba(47,133,90,0.2);color:#2f855a;border:1px solid #2f855a;padding:6px 14px"
-                  id="sueldoMiniBtnDescanso" onclick="asistMarcarDiaDescanso(true)">🌴 Descanso</button>
+            id="sueldoMiniBtnDescanso" onclick="asistMarcarDiaEstado('descanso')">🌴 Descanso</button>
           <button class="btn btn-sm" style="background:rgba(197,48,48,0.15);color:#c53030;border:1px solid #c53030;padding:6px 14px"
-                  id="sueldoMiniBtnFalta" onclick="asistMarcarDiaDescanso(false)">✗ Falta</button>
+            id="sueldoMiniBtnFalta" onclick="asistMarcarDiaEstado('falta')">✗ Falta</button>
+          <button class="btn btn-sm" style="background:rgba(3,105,161,0.14);color:#0369a1;border:1px solid #0369a1;padding:6px 14px"
+            id="sueldoMiniBtnFeriado" onclick="asistMarcarDiaEstado('feriado')">🎉 Feriado</button>
+          <button class="btn btn-sm" style="background:rgba(124,58,237,0.14);color:#7c3aed;border:1px solid #7c3aed;padding:6px 14px"
+            id="sueldoMiniBtnNoContable" onclick="asistMarcarDiaEstado('no_contable')">🧾 No contable</button>
           <button class="btn btn-sm btn-secondary" style="padding:6px 14px" onclick="asistCerrarMiniModalDia()">Cancelar</button>
         </div>
       </div>
@@ -1371,7 +1399,7 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   body.innerHTML = html;
 }
 
-function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha, fechasDescanso }) {
+function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha, fechasDescanso, fechasFeriado = new Set(), fechasNoContable = new Set() }) {
   // Regla crítica: esta función debe ser la única fuente para auto-descanso.
   // La usan calendario y boleta impresa para evitar desalineaciones.
   const autoDescansos = new Set();
@@ -1392,6 +1420,7 @@ function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha
     if (!semana.conTrabajo) continue;
     let primerDescanso = false;
     for (const fecha of semana.fechas) {
+      if (fechasNoContable.has(fecha) || fechasFeriado.has(fecha)) continue;
       if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
       if (!primerDescanso) {
         autoDescansos.add(fecha);
@@ -1403,11 +1432,11 @@ function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha
   return autoDescansos;
 }
 
-// ── Mini modal para marcar descanso/falta por día ────────────────
+// ── Mini modal para marcar estado por día ─────────────────────────
 
 let _sueldoMiniFechaActual = null;
 
-function asistAbrirMiniModalDia(fecha, esDescansoActual) {
+function asistAbrirMiniModalDia(fecha, estadoActual) {
   _sueldoMiniFechaActual = fecha;
   const overlay = document.getElementById('sueldoMiniModal');
   if (!overlay) return;
@@ -1415,11 +1444,16 @@ function asistAbrirMiniModalDia(fecha, esDescansoActual) {
   const f = new Date(fecha + 'T12:00:00');
   const diaSem = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][f.getDay()];
   document.getElementById('sueldoMiniFecha').textContent = `${diaSem} ${f.getDate()}`;
-  // Resaltar botón activo si ya es descanso
+
+  const estado = String(estadoActual || 'falta');
   const btnD = document.getElementById('sueldoMiniBtnDescanso');
   const btnF = document.getElementById('sueldoMiniBtnFalta');
-  btnD.style.opacity = esDescansoActual ? '1' : '0.45';
-  btnF.style.opacity = esDescansoActual ? '0.45' : '1';
+  const btnFe = document.getElementById('sueldoMiniBtnFeriado');
+  const btnNc = document.getElementById('sueldoMiniBtnNoContable');
+  if (btnD) btnD.style.opacity = estado === 'descanso' ? '1' : '0.45';
+  if (btnF) btnF.style.opacity = estado === 'falta' ? '1' : '0.45';
+  if (btnFe) btnFe.style.opacity = estado === 'feriado' ? '1' : '0.45';
+  if (btnNc) btnNc.style.opacity = estado === 'no_contable' ? '1' : '0.45';
 }
 
 function asistCerrarMiniModalDia() {
@@ -1428,47 +1462,69 @@ function asistCerrarMiniModalDia() {
   _sueldoMiniFechaActual = null;
 }
 
-async function asistMarcarDiaDescanso(marcarDescanso) {
+async function asistMarcarDiaEstado(estado) {
   if (!_sueldoCalData || !_sueldoMiniFechaActual) return;
   const { empId, desde, hasta, boleta } = _sueldoCalData;
 
-  // Obtener estado actual de descansos desde la boleta
   const descansosActuales = new Set((boleta.descansosFechas || []).filter(f => typeof f === 'string'));
-  const yaEsDescanso = descansosActuales.has(_sueldoMiniFechaActual);
+  const feriadosActuales = new Set((boleta.feriadosFechas || []).filter(f => typeof f === 'string'));
+  const noContableActuales = new Set((boleta.noContableFechas || []).filter(f => typeof f === 'string'));
 
-  if (marcarDescanso === yaEsDescanso) {
-    // Ya está en el estado solicitado
+  const estadoActual = noContableActuales.has(_sueldoMiniFechaActual)
+    ? 'no_contable'
+    : feriadosActuales.has(_sueldoMiniFechaActual)
+      ? 'feriado'
+      : descansosActuales.has(_sueldoMiniFechaActual)
+        ? 'descanso'
+        : 'falta';
+
+  if (estado === estadoActual) {
     asistCerrarMiniModalDia();
     return;
   }
 
-  // Construir payload: modificar solo esta fecha
-  if (marcarDescanso) {
-    descansosActuales.add(_sueldoMiniFechaActual);
-  } else {
-    descansosActuales.delete(_sueldoMiniFechaActual);
-  }
+  descansosActuales.delete(_sueldoMiniFechaActual);
+  feriadosActuales.delete(_sueldoMiniFechaActual);
+  noContableActuales.delete(_sueldoMiniFechaActual);
+
+  if (estado === 'descanso') descansosActuales.add(_sueldoMiniFechaActual);
+  if (estado === 'feriado') feriadosActuales.add(_sueldoMiniFechaActual);
+  if (estado === 'no_contable') noContableActuales.add(_sueldoMiniFechaActual);
 
   const payload = {};
   payload[empId] = [...descansosActuales].sort();
+  const payloadFeriados = {};
+  payloadFeriados[empId] = [...feriadosActuales].sort();
+  const payloadNoContable = {};
+  payloadNoContable[empId] = [...noContableActuales].sort();
 
   const btnDesc = document.getElementById('sueldoMiniBtnDescanso');
   const btnFal = document.getElementById('sueldoMiniBtnFalta');
-  const txtDesc = btnDesc?.textContent || '';
-  const txtFal = btnFal?.textContent || '';
+  const btnFer = document.getElementById('sueldoMiniBtnFeriado');
+  const btnNc = document.getElementById('sueldoMiniBtnNoContable');
   if (btnDesc) btnDesc.disabled = true;
   if (btnFal) btnFal.disabled = true;
+  if (btnFer) btnFer.disabled = true;
+  if (btnNc) btnNc.disabled = true;
 
   try {
     const res = await fetch(`${AAPI}/sueldos/descansos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ periodo_desde: desde, periodo_hasta: hasta, descansos: payload })
+      body: JSON.stringify({
+        periodo_desde: desde,
+        periodo_hasta: hasta,
+        descansos: payload,
+        feriados: payloadFeriados,
+        no_contable: payloadNoContable
+      })
     });
     const data = await res.json();
     if (data.ok) {
       // Refrescar el calendario con los nuevos datos
       _sueldoCalData.boleta.descansosFechas = [...descansosActuales].sort();
+      _sueldoCalData.boleta.feriadosFechas = [...feriadosActuales].sort();
+      _sueldoCalData.boleta.noContableFechas = [...noContableActuales].sort();
       asistCerrarMiniModalDia();
       asistRenderCalendario(_sueldoCalData.boleta, _sueldoCalData.empData, _sueldoCalData.desde, _sueldoCalData.hasta);
     } else {
@@ -1479,6 +1535,8 @@ async function asistMarcarDiaDescanso(marcarDescanso) {
   } finally {
     if (btnDesc) btnDesc.disabled = false;
     if (btnFal) btnFal.disabled = false;
+    if (btnFer) btnFer.disabled = false;
+    if (btnNc) btnNc.disabled = false;
   }
 }
 
@@ -1758,6 +1816,8 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   const { emp, ajuste, valorDia, valorHora, descTardanza, periodo, resumen } = data;
   const registrosCalendario = Array.isArray(dataMes?.registros) ? dataMes.registros : [];
   const descansosFechasCalendario = Array.isArray(dataMes?.descansosFechas) ? dataMes.descansosFechas : [];
+  const feriadosFechasCalendario = Array.isArray(dataMes?.feriadosFechas) ? dataMes.feriadosFechas : [];
+  const noContableFechasCalendario = Array.isArray(dataMes?.noContableFechas) ? dataMes.noContableFechas : [];
 
   // ── Extraer datos ──
   const diasTrab   = +resumen?.diasTrabajados || 0;
@@ -1790,6 +1850,8 @@ async function asistImprimirBoleta(empId, desde, hasta) {
 
   // ── Calendario grid (mismo estilo que el modal) ──
   const fechasDescanso = new Set((descansosFechasCalendario || []).filter(f => typeof f === 'string'));
+  const fechasFeriado = new Set((feriadosFechasCalendario || []).filter(f => typeof f === 'string'));
+  const fechasNoContable = new Set((noContableFechasCalendario || []).filter(f => typeof f === 'string'));
   const registrosPorFecha = new Map((registrosCalendario || []).map(r => [r.fecha, r]));
   const qDesde = new Date(desde + 'T12:00:00');
   const qHasta = new Date(hasta + 'T12:00:00');
@@ -1805,7 +1867,9 @@ async function asistImprimirBoleta(empId, desde, hasta) {
     mes: mesCal,
     ultimoDia: ultimoDiaMesCal,
     registrosPorFecha,
-    fechasDescanso
+    fechasDescanso,
+    fechasFeriado,
+    fechasNoContable
   });
 
   let calFilas = '';
@@ -1821,13 +1885,17 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   for (let d = desdeDia; d <= hastaDia; d++) {
     const fecha = `${anioCal}-${String(mesCal + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const reg = registrosPorFecha.get(fecha);
+    const esNoContable = fechasNoContable.has(fecha);
+    const esFeriado = !esNoContable && fechasFeriado.has(fecha);
     const esDesc = fechasDescanso.has(fecha);
-    const esAutoDescPrint = !esDesc && autoDescansosPrint.has(fecha);
+    const esAutoDescPrint = !esNoContable && !esFeriado && !esDesc && autoDescansosPrint.has(fecha);
     const esFut = fecha > hoy.toISOString().slice(0, 10);
 
     let txt = `<div class="pn">${d}</div>`;
     let cls = 'pd';
-    if (esDesc || esAutoDescPrint) { txt += '<div class="ps pd-d">Descanso</div>'; cls += ' pd-r'; }
+    if (esNoContable) { txt += '<div class="ps" style="color:#7c3aed">No contable</div>'; }
+    else if (esFeriado) { txt += '<div class="ps" style="color:#0369a1">Feriado</div>'; }
+    else if (esDesc || esAutoDescPrint) { txt += '<div class="ps pd-d">Descanso</div>'; cls += ' pd-r'; }
     else if (reg) {
       const et = reg.hora_entrada || '—';
       const st = reg.hora_salida || '—';

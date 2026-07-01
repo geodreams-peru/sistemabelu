@@ -160,6 +160,8 @@ async function ensureSueldoAjustesColumns() {
     const names = new Set(cols.map(c => c.name));
     if (!names.has('descansos_override'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`);
     if (!names.has('descansos_fechas'))           await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`);
+    if (!names.has('feriados_fechas'))            await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN feriados_fechas TEXT DEFAULT NULL`);
+    if (!names.has('no_contable_fechas'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN no_contable_fechas TEXT DEFAULT NULL`);
     if (!names.has('faltas_override'))            await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN faltas_override INTEGER DEFAULT NULL`);
     if (!names.has('tardanzas_override'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN tardanzas_override INTEGER DEFAULT NULL`);
     if (!names.has('nota'))                       await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN nota TEXT DEFAULT ''`);
@@ -230,6 +232,8 @@ async function ensureConfigSchema() {
     // Garantizar columnas en sueldo_ajustes aunque la DB sea vieja
     await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`);
     await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN feriados_fechas TEXT DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN no_contable_fechas TEXT DEFAULT NULL`);
     await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_adicionales_override INTEGER DEFAULT NULL`);
     await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dom_monto_override FLOAT DEFAULT NULL`);
     await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN onp_override BOOLEAN DEFAULT NULL`);
@@ -314,6 +318,8 @@ function initDB() {
       tardanzas_override INTEGER DEFAULT NULL,
       descansos_override INTEGER DEFAULT NULL,
       descansos_fechas TEXT DEFAULT NULL,
+      feriados_fechas TEXT DEFAULT NULL,
+      no_contable_fechas TEXT DEFAULT NULL,
       dias_trabajados_override INTEGER DEFAULT NULL,
       prestamo FLOAT DEFAULT 0.0,
       bono FLOAT DEFAULT 0.0,
@@ -329,6 +335,8 @@ function initDB() {
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN tardanzas_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`, () => {});
+    db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN feriados_fechas TEXT DEFAULT NULL`, () => {});
+    db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN no_contable_fechas TEXT DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_trabajados_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_adicionales_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN dom_monto_override FLOAT DEFAULT NULL`, () => {});
@@ -445,9 +453,19 @@ async function buildBoletaPayload(empId, desde, hasta) {
   const resumen = calcularResumenSueldo({ emp, regs, ajuste, periodo: periodoEmp, cfg, regsContext });
 
   let descansosFechas = [];
+  let feriadosFechas = [];
+  let noContableFechas = [];
   try {
     const parsed = JSON.parse(ajuste?.descansos_fechas || '[]');
     if (Array.isArray(parsed)) descansosFechas = parsed;
+  } catch {}
+  try {
+    const parsed = JSON.parse(ajuste?.feriados_fechas || '[]');
+    if (Array.isArray(parsed)) feriadosFechas = parsed;
+  } catch {}
+  try {
+    const parsed = JSON.parse(ajuste?.no_contable_fechas || '[]');
+    if (Array.isArray(parsed)) noContableFechas = parsed;
   } catch {}
 
   const registros = regs.map(r => {
@@ -467,6 +485,8 @@ async function buildBoletaPayload(empId, desde, hasta) {
     ajuste,
     registros,
     descansosFechas,
+    feriadosFechas,
+    noContableFechas,
     valorDia: valores.valorDia,
     valorHora: valores.valorHora,
     descTardanza,
@@ -674,10 +694,24 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
   const fechasContextSet = new Set(regsContext.map(r => r.fecha));
   const fechaIngresoEmp = emp.fecha_ingreso ? DateTime.fromISO(String(emp.fecha_ingreso), { zone: TZ }) : null;
 
-  const conEntrada = regs.filter(r => r.hora_entrada);
+  let feriadosFechasSet = new Set();
+  let noContableFechasSet = new Set();
+  try {
+    const parsed = JSON.parse(ajuste?.feriados_fechas || '[]');
+    if (Array.isArray(parsed)) feriadosFechasSet = new Set(parsed.filter(f => typeof f === 'string'));
+  } catch {}
+  try {
+    const parsed = JSON.parse(ajuste?.no_contable_fechas || '[]');
+    if (Array.isArray(parsed)) noContableFechasSet = new Set(parsed.filter(f => typeof f === 'string'));
+  } catch {}
+
+  const conEntrada = regs.filter(r => r.hora_entrada && !noContableFechasSet.has(r.fecha));
   const completos = conEntrada.filter(r => r.hora_salida);
   const sinSalida = conEntrada.filter(r => !r.hora_salida);
   const fechasAsistencia = new Set(conEntrada.map(r => r.fecha));
+  for (const f of feriadosFechasSet) {
+    if (!noContableFechasSet.has(f)) fechasAsistencia.add(f);
+  }
 
   let diasTrabajados = 0;
   let horasTrabajadas = 0;
@@ -712,7 +746,8 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
     const diasSem = [];
     for (let i = 0; i < 7; i++) {
       const d = lun.plus({ days: i });
-      if (d >= desde && d <= hastaCalc) diasSem.push(d.toISODate());
+      const f = d.toISODate();
+      if (d >= desde && d <= hastaCalc && !noContableFechasSet.has(f)) diasSem.push(f);
     }
     if (diasSem.length === 7) {
       const trabSem = diasSem.filter(d => fechasAsistencia.has(d)).length;
@@ -766,7 +801,10 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
   }
   domMonto = toMoney(domMonto);
 
-  const feriados = +ajuste?.feriados || 0;
+  const feriadosAuto = [...feriadosFechasSet]
+    .filter(f => !noContableFechasSet.has(f) && f >= periodo.desde && f <= periodo.hasta)
+    .length;
+  const feriados = feriadosAuto > 0 ? feriadosAuto : (+ajuste?.feriados || 0);
   const prestamo = +ajuste?.prestamo || 0;
   const bono = +ajuste?.bono || 0;
   const nota = ajuste?.nota || '';
@@ -1410,23 +1448,33 @@ router.get('/sueldos/descansos', authAdmin, async (req, res) => {
     if (!periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan fechas del período.' });
     await ensureSueldoAjustesColumns();
     const rows = await all(
-      'SELECT empleado_id, descansos_fechas FROM sueldo_ajustes WHERE periodo_desde=? AND periodo_hasta=?',
+      'SELECT empleado_id, descansos_fechas, feriados_fechas, no_contable_fechas FROM sueldo_ajustes WHERE periodo_desde=? AND periodo_hasta=?',
       [periodo_desde, periodo_hasta]
     );
     const map = {};
+    const mapFeriados = {};
+    const mapNoContable = {};
     for (const r of rows) {
       try {
         const fechas = JSON.parse(r.descansos_fechas || '[]');
         if (Array.isArray(fechas)) map[r.empleado_id] = fechas;
       } catch { map[r.empleado_id] = []; }
+      try {
+        const fechas = JSON.parse(r.feriados_fechas || '[]');
+        if (Array.isArray(fechas)) mapFeriados[r.empleado_id] = fechas;
+      } catch { mapFeriados[r.empleado_id] = []; }
+      try {
+        const fechas = JSON.parse(r.no_contable_fechas || '[]');
+        if (Array.isArray(fechas)) mapNoContable[r.empleado_id] = fechas;
+      } catch { mapNoContable[r.empleado_id] = []; }
     }
-    res.json({ ok: true, periodo_desde, periodo_hasta, descansos: map });
+    res.json({ ok: true, periodo_desde, periodo_hasta, descansos: map, feriados: mapFeriados, no_contable: mapNoContable });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 router.post('/sueldos/descansos', authAdmin, async (req, res) => {
   try {
-    const { periodo_desde, periodo_hasta, descansos = {} } = req.body;
+    const { periodo_desde, periodo_hasta, descansos = {}, feriados = {}, no_contable = {} } = req.body;
     if (!periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan fechas del período.' });
     if (typeof descansos !== 'object' || descansos === null) return res.status(400).json({ error: 'Descansos inválidos.' });
 
@@ -1439,7 +1487,11 @@ router.post('/sueldos/descansos', authAdmin, async (req, res) => {
     const hoy = nowLima().startOf('day');
 
     // Cargar datos de los empleados enviados para respetar fechas de ingreso/baja.
-    const empIds = Object.keys(descansos).map(id => +id).filter(Number.isFinite);
+    const empIds = Array.from(new Set([
+      ...Object.keys(descansos || {}),
+      ...Object.keys(feriados || {}),
+      ...Object.keys(no_contable || {})
+    ])).map(id => +id).filter(Number.isFinite);
     const empleados = empIds.length
       ? await all(`SELECT id, fecha_ingreso, fecha_baja FROM empleados WHERE id IN (${empIds.map(() => '?').join(',')})`, empIds)
       : [];
@@ -1456,35 +1508,60 @@ router.post('/sueldos/descansos', authAdmin, async (req, res) => {
       asistenciasPorEmpleado.get(r.empleado_id).add(r.fecha);
     }
 
-    for (const [empIdRaw, fechasRaw] of Object.entries(descansos)) {
-      const empleado_id = +empIdRaw;
+    for (const empleado_id of empIds) {
       if (!Number.isFinite(empleado_id)) continue;
+      const empIdRaw = String(empleado_id);
+      const fechasDescansosRaw = descansos?.[empIdRaw] || [];
+      const fechasFeriadosRaw = feriados?.[empIdRaw] || [];
+      const fechasNoContableRaw = no_contable?.[empIdRaw] || [];
+
       const emp = empMap.get(empleado_id);
       const periodoEmp = emp ? periodoConCortePorBaja({ desde: periodo_desde, hasta: periodo_hasta }, emp) : { desde: periodo_desde, hasta: periodo_hasta };
       const desdeEmp = DateTime.fromISO(periodoEmp.desde, { zone: TZ });
       const hastaEmp = DateTime.fromISO(periodoEmp.hasta, { zone: TZ });
       const hastaCalc = hastaEmp < hoy ? hastaEmp : hoy;
 
-      const fechas = Array.isArray(fechasRaw) ? fechasRaw : [];
-      const fechasValidas = fechas
+      const fechasDescansos = Array.isArray(fechasDescansosRaw) ? fechasDescansosRaw : [];
+      const fechasFeriados = Array.isArray(fechasFeriadosRaw) ? fechasFeriadosRaw : [];
+      const fechasNoContable = Array.isArray(fechasNoContableRaw) ? fechasNoContableRaw : [];
+
+      const validasDescansos = fechasDescansos
         .filter(f => typeof f === 'string')
         .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
         .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
-      const fechasDescanso = new Set(fechasValidas);
+
+      const validasFeriados = fechasFeriados
+        .filter(f => typeof f === 'string')
+        .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
+        .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
+
+      const validasNoContable = fechasNoContable
+        .filter(f => typeof f === 'string')
+        .map(f => DateTime.fromISO(f, { zone: TZ }).toISODate())
+        .filter(f => f && f >= periodo_desde && f <= periodo_hasta);
+
+      const noContableSet = new Set(validasNoContable);
+      const feriadosSet = new Set(validasFeriados.filter(f => !noContableSet.has(f)));
+      const fechasDescanso = new Set(validasDescansos.filter(f => !noContableSet.has(f) && !feriadosSet.has(f)));
       const asistencias = asistenciasPorEmpleado.get(empleado_id) || new Set();
 
       let descansosCount = 0;
       let faltasCount = 0;
       for (let d = desdeEmp; d <= hastaCalc; d = d.plus({ days: 1 })) {
         const f = d.toISODate();
+        if (noContableSet.has(f)) continue;
         if (asistencias.has(f)) continue;
+        if (feriadosSet.has(f)) continue;
         if (fechasDescanso.has(f)) descansosCount++;
         else faltasCount++;
       }
 
       const fechasJson = JSON.stringify([...fechasDescanso].sort());
+      const feriadosJson = JSON.stringify([...feriadosSet].sort());
+      const noContableJson = JSON.stringify([...noContableSet].sort());
       const descansosOverride = fechasDescanso.size ? descansosCount : null;
       const faltasOverride = fechasDescanso.size ? faltasCount : null;
+      const feriadosCount = feriadosSet.size;
 
       const existe = await get(
         'SELECT id FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
@@ -1492,13 +1569,13 @@ router.post('/sueldos/descansos', authAdmin, async (req, res) => {
       );
       if (existe) {
         await run(
-          'UPDATE sueldo_ajustes SET descansos_fechas=?,descansos_override=?,faltas_override=?,updated_at=? WHERE id=?',
-          [fechasJson, descansosOverride, faltasOverride, ahoraSQL(), existe.id]
+          'UPDATE sueldo_ajustes SET descansos_fechas=?,feriados_fechas=?,no_contable_fechas=?,descansos_override=?,faltas_override=?,feriados=?,updated_at=? WHERE id=?',
+          [fechasJson, feriadosJson, noContableJson, descansosOverride, faltasOverride, feriadosCount, ahoraSQL(), existe.id]
         );
       } else {
         await run(
-          'INSERT INTO sueldo_ajustes (empleado_id,periodo_desde,periodo_hasta,descansos_fechas,descansos_override,faltas_override,feriados,prestamo,bono,nota,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-          [empleado_id, periodo_desde, periodo_hasta, fechasJson, descansosOverride, faltasOverride, 0, 0, 0, '', ahoraSQL()]
+          'INSERT INTO sueldo_ajustes (empleado_id,periodo_desde,periodo_hasta,descansos_fechas,feriados_fechas,no_contable_fechas,descansos_override,faltas_override,feriados,prestamo,bono,nota,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+          [empleado_id, periodo_desde, periodo_hasta, fechasJson, feriadosJson, noContableJson, descansosOverride, faltasOverride, feriadosCount, 0, 0, '', ahoraSQL()]
         );
       }
     }
