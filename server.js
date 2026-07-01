@@ -7,7 +7,7 @@ const sqlite3 = require('sqlite3').verbose();
 const { dbPath, ensureRuntimeDirs, logPaths, UPLOADS_DIR, DATA_DIR } = require('./lib/paths');
 const { shouldMigrate } = require('./lib/db');
 
-const DEPLOY_VERSION = '2026-06-25-data-dir-v1';
+const DEPLOY_VERSION = '2026-07-01-failsoft-db-v2';
 
 function bootLog(location, message, data, hypothesisId = 'H503') {
   const entry = { sessionId: '61705f', hypothesisId, location, message, data, timestamp: Date.now() };
