@@ -1273,11 +1273,16 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   const makeCelda = (dia) => {
     const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
     const reg = registrosPorFecha.get(fecha);
-    const esNoContable = fechasNoContable.has(fecha);
-    const esFeriado = !esNoContable && fechasFeriado.has(fecha);
-    const esDescanso = fechasDescanso.has(fecha);
-    const esAutoDesc = !esNoContable && !esFeriado && !esDescanso && autoDescansos.has(fecha);
-    const esFuturo = fecha > hoyStr;
+    const info = asistResolverEstadoDia({
+      fecha,
+      reg,
+      fechasNoContable,
+      fechasFeriado,
+      fechasDescanso,
+      autoDescansos,
+      hoyStr
+    });
+    const { esNoContable, esFeriado, esDescanso, esAutoDesc, esFuturo } = info;
     const esHoy = fecha === hoyStr;
     // Determinar si este día está dentro de la quincena seleccionada
     const qDesdeDia = fDesde.getDate();
@@ -1292,20 +1297,19 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
     if (esNoContable) cls += ' sueldo-cal-no-contable';
     if (esFeriado) cls += ' sueldo-cal-feriado';
     if (esDescanso || esAutoDesc) cls += ' sueldo-cal-descanso';
-    if (!reg && !esNoContable && !esFeriado && !esDescanso && !esAutoDesc && !esFuturo) cls += ' sueldo-cal-falta';
+    if (!reg && info.esFaltaVisual) cls += ' sueldo-cal-falta';
     if (esHoy) cls += ' sueldo-cal-hoy';
     if (esCorte) cls += ' sueldo-cal-corte';
 
     let contenido = `<div class="sueldo-cal-num">${dia}</div>`;
     if (esNoContable) {
       contenido += `<div class="sueldo-cal-estado" style="color:#7c3aed">No contable</div>`;
-    } else if (esFeriado) {
+    }
+    if (esFeriado) {
       contenido += `<div class="sueldo-cal-estado" style="color:#0369a1">Feriado</div>`;
-    } else if (esDescanso) {
-      contenido += `<div class="sueldo-cal-estado descanso">Descanso</div>`;
-    } else if (esAutoDesc) {
-      contenido += `<div class="sueldo-cal-estado descanso">Descanso*</div>`;
-    } else if (reg) {
+    }
+
+    if (reg) {
       const entrada = reg.hora_entrada || '';
       const salida = reg.hora_salida || '';
       const esTarde = reg.tarde;
@@ -1322,16 +1326,16 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
       if (horas > 0 && horas < 8) {
         contenido += `<div class="sueldo-cal-estado parcial">${horas}h</div>`;
       }
-    } else if (!esFuturo && !esNoContable && !esFeriado && !esDescanso && !esAutoDesc) {
+    } else if (esDescanso) {
+      contenido += `<div class="sueldo-cal-estado descanso">Descanso</div>`;
+    } else if (esAutoDesc) {
+      contenido += `<div class="sueldo-cal-estado descanso">Descanso*</div>`;
+    } else if (info.esFaltaVisual) {
       contenido += `<div class="sueldo-cal-estado falta">Falta</div>`;
     }
 
     // Doble clic para marcar estado diario (solo en días de la quincena actual)
-    const estadoActual = esNoContable
-      ? 'no_contable'
-      : esFeriado
-        ? 'feriado'
-        : ((esDescanso || esAutoDesc) ? 'descanso' : 'falta');
+    const estadoActual = info.estadoSeleccion;
     const dblClickHandler = enQuincena
       ? `asistAbrirMiniModalDia('${fecha}', '${estadoActual}');event.stopPropagation()`
       : '';
@@ -1430,6 +1434,22 @@ function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha
   }
 
   return autoDescansos;
+}
+
+function asistResolverEstadoDia({ fecha, reg, fechasNoContable, fechasFeriado, fechasDescanso, autoDescansos, hoyStr }) {
+  const esNoContable = fechasNoContable.has(fecha);
+  const esFeriado = !esNoContable && fechasFeriado.has(fecha);
+  const esDescanso = !esNoContable && !esFeriado && fechasDescanso.has(fecha);
+  const esAutoDesc = !esNoContable && !esFeriado && !esDescanso && autoDescansos.has(fecha);
+  const esFuturo = fecha > hoyStr;
+  const esFaltaVisual = !reg && !esNoContable && !esFeriado && !esDescanso && !esAutoDesc && !esFuturo;
+  const estadoSeleccion = esNoContable
+    ? 'no_contable'
+    : esFeriado
+      ? 'feriado'
+      : ((esDescanso || esAutoDesc) ? 'descanso' : 'falta');
+
+  return { esNoContable, esFeriado, esDescanso, esAutoDesc, esFuturo, esFaltaVisual, estadoSeleccion };
 }
 
 // ── Mini modal para marcar estado por día ─────────────────────────
@@ -1885,18 +1905,23 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   for (let d = desdeDia; d <= hastaDia; d++) {
     const fecha = `${anioCal}-${String(mesCal + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const reg = registrosPorFecha.get(fecha);
-    const esNoContable = fechasNoContable.has(fecha);
-    const esFeriado = !esNoContable && fechasFeriado.has(fecha);
-    const esDesc = fechasDescanso.has(fecha);
-    const esAutoDescPrint = !esNoContable && !esFeriado && !esDesc && autoDescansosPrint.has(fecha);
-    const esFut = fecha > hoy.toISOString().slice(0, 10);
+    const info = asistResolverEstadoDia({
+      fecha,
+      reg,
+      fechasNoContable,
+      fechasFeriado,
+      fechasDescanso,
+      autoDescansos: autoDescansosPrint,
+      hoyStr: hoy.toISOString().slice(0, 10)
+    });
+    const { esNoContable, esFeriado, esDescanso, esAutoDesc } = info;
 
     let txt = `<div class="pn">${d}</div>`;
     let cls = 'pd';
-    if (esNoContable) { txt += '<div class="ps" style="color:#7c3aed">No contable</div>'; }
-    else if (esFeriado) { txt += '<div class="ps" style="color:#0369a1">Feriado</div>'; }
-    else if (esDesc || esAutoDescPrint) { txt += '<div class="ps pd-d">Descanso</div>'; cls += ' pd-r'; }
-    else if (reg) {
+    if (esNoContable) txt += '<div class="ps" style="color:#7c3aed">No contable</div>';
+    if (esFeriado) txt += '<div class="ps" style="color:#0369a1">Feriado</div>';
+
+    if (reg) {
       const et = reg.hora_entrada || '—';
       const st = reg.hora_salida || '—';
       const tr = reg.tarde;
@@ -1905,7 +1930,13 @@ async function asistImprimirBoleta(empId, desde, hasta) {
       if (tr) txt += '<div class="ps ps-t">Tardanza</div>';
       else txt += '<div class="ps ps-o">✓</div>';
       if (hrs > 0 && hrs < 8) txt += `<div class="ps ps-p">${hrs}h</div>`;
-    } else if (!esFut) { txt += '<div class="ps ps-f">Falta</div>'; cls += ' pd-f'; }
+    } else if (esDescanso || esAutoDesc) {
+      txt += '<div class="ps pd-d">Descanso</div>';
+      cls += ' pd-r';
+    } else if (info.esFaltaVisual) {
+      txt += '<div class="ps ps-f">Falta</div>';
+      cls += ' pd-f';
+    }
 
     filaCal += `<td class="${cls}">${txt}</td>`;
     col++;
