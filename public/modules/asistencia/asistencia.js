@@ -1125,7 +1125,7 @@ async function asistCargarSueldos() {
           <th title="Horas trabajadas en jornadas menores a 8 horas" style="padding:6px 2px;text-align:center">Horas</th>
           <th title="Dias adicionales por semana completa" style="padding:6px 2px;text-align:center">Adic</th>
           <th title="Dias feriados trabajados" style="padding:6px 2px;text-align:center">Fer</th>
-          <th title="Dominical proporcional" style="padding:6px 2px;text-align:center">DOM</th>
+          <th title="Dia Proporcional" style="padding:6px 2px;text-align:center">Día Prop</th>
           <th title="Dias descansado" style="padding:6px 2px;text-align:center">Desc</th>
           <th title="Faltas/Descuento" style="padding:6px 2px;text-align:center">Faltas</th>
           <th title="Tardanzas de la quincena" style="padding:6px 2px;text-align:center">Tard</th>
@@ -1134,17 +1134,16 @@ async function asistCargarSueldos() {
           <th title="Prestamo en quincena" style="padding:6px 2px;text-align:center">Prést</th>
           <th title="Total final" style="padding:6px 2px;text-align:center">SUELDO</th>
           <th class="asistencia-sueldos-nota" title="Nota" style="padding:6px 2px;text-align:center">Nota</th>
-          <th style="padding:6px 2px;width:60px"></th>
         </tr></thead>
         <tbody>${data.resultados.map(r => {
           const empName = r.emp.nombre_completo || '';
           const empCargo = r.emp.cargo || '';
           return `<tr data-empid="${r.emp.id}">
           <td class="asistencia-sueldos-empleado" style="white-space:nowrap;padding:4px 3px">
-            <a href="#" class="sueldo-nombre-link" onclick="asistAbrirModalCalendario(${r.emp.id},'${p.desde}','${p.hasta}');return false"
-               style="text-decoration:none;color:inherit;cursor:pointer">
+            <span onclick="asistAbrirModalCalendario(${r.emp.id},'${p.desde}','${p.hasta}')"
+               style="text-decoration:none;color:var(--text-light);cursor:pointer">
               <strong>${empName}</strong>
-            </a>
+            </span>
             <br><span style="color:var(--text-muted);font-size:.72em">${empCargo}</span>
           </td>
           <td style="text-align:center;white-space:nowrap;padding:4px 2px">${r.dias_trabajados}</td>
@@ -1164,7 +1163,6 @@ async function asistCargarSueldos() {
           <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--danger)">${r.prestamo > 0 ? aFmt(r.prestamo) : '—'}</td>
           <td style="text-align:center;white-space:nowrap;padding:4px 2px"><strong style="color:${r.sueldo >= 0 ? 'var(--success)' : 'var(--danger)'};font-size:.9em">${aFmt(r.sueldo)}</strong></td>
           <td class="asistencia-sueldos-nota" style="padding:4px 2px;font-size:.75em;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.nota||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || '—'}</td>
-          <td style="text-align:center;padding:2px"><button style="padding:6px 0;min-height:30px;font-size:.68em;background:var(--bg-darker);border:1px solid var(--border);border-radius:4px;cursor:pointer;width:100%;display:block;color:var(--text-light);line-height:1" title="Imprimir boleta" onclick="asistImprimirBoleta(${r.emp.id},'${p.desde}','${p.hasta}')">🖨️</button></td>
         </tr>`;
         }).join('')}</tbody>
       </table>`;
@@ -1198,8 +1196,17 @@ async function asistAbrirModalCalendario(empId, desde, hasta) {
     document.getElementById('sueldoCalTitulo').textContent = `📅 ${empData.emp.nombre_completo}`;
     document.getElementById('sueldoCalSubtitulo').textContent = `${empData.emp.cargo || '—'} • ${desde} al ${hasta}`;
 
-    // Obtener data detallada del backend (asistencias por día)
-    const boletaRes = await fetch(`${AAPI}/sueldos/boleta?emp_id=${empId}&desde=${desde}&hasta=${hasta}&_=${Date.now()}`);
+    // Obtener data del mes completo para el calendario
+    // Extraer el mes/año de desde
+    const desdeParts = desde.split('-');
+    const anioCal = parseInt(desdeParts[0], 10);
+    const mesCal = parseInt(desdeParts[1], 10);
+    const ultDia = new Date(anioCal, mesCal, 0).getDate();
+    const mesDesde = `${anioCal}-${String(mesCal).padStart(2, '0')}-01`;
+    const mesHasta = `${anioCal}-${String(mesCal).padStart(2, '0')}-${String(ultDia).padStart(2, '0')}`;
+
+    // Llamar al endpoint de boleta con el mes completo
+    const boletaRes = await fetch(`${AAPI}/sueldos/boleta?emp_id=${empId}&desde=${mesDesde}&hasta=${mesHasta}&_=${Date.now()}`);
     const boleta = await boletaRes.json();
     if (!boleta.ok) throw new Error(boleta.error || 'Error al cargar data');
 
@@ -1217,29 +1224,24 @@ async function asistAbrirModalCalendario(empId, desde, hasta) {
 
 function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   const body = document.getElementById('sueldoCalBody');
-  const { registros, descansosFechas, periodo } = boleta;
+  const { registros, descansosFechas } = boleta;
   const fechasDescanso = new Set((descansosFechas || []).filter(f => typeof f === 'string'));
   const registrosPorFecha = new Map(registros.map(r => [r.fecha, r]));
 
-  // Usar las fechas originales de la quincena (no el periodo recortado del empleado)
+  // Mostrar el mes completo: determinar primer y último día del mes
   const fDesde = new Date(qDesde + 'T12:00:00');
   const fHasta = new Date(qHasta + 'T12:00:00');
   const anio = fDesde.getFullYear();
   const mes = fDesde.getMonth();
-  const desdeDia = fDesde.getDate();
-  const hastaDia = fHasta.getDate();
+  const ultimoDia = new Date(anio, mes + 1, 0).getDate();
   const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
   const hoy = new Date();
   const hoyStr = hoy.toISOString().slice(0, 10);
 
-  // Pre-calcular auto-descansos según regla semanal Lun-Dom
-  // En cada semana de 7 días (Lun-Dom), si hay al menos 1 asistencia:
-  //   - El 1er día sin asistencia es DESCANSO
-  //   - Los siguientes días sin asistencia en esa misma semana son FALTA
+  // Calcular auto-descansos para el mes completo
   const autoDescansos = new Set();
-  // Agrupar días por semana (clave = lunes)
   const semanas = {};
-  for (let d = desdeDia; d <= hastaDia; d++) {
+  for (let d = 1; d <= ultimoDia; d++) {
     const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const fd = new Date(fecha + 'T12:00:00');
     const ws = new Date(fd);
@@ -1250,7 +1252,7 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
     if (registrosPorFecha.has(fecha)) semanas[key].conTrabajo = true;
   }
   for (const semana of Object.values(semanas)) {
-    if (!semana.conTrabajo) continue; // sin trabajo → todas faltas
+    if (!semana.conTrabajo) continue;
     let primerDescanso = false;
     for (const fecha of semana.fechas) {
       if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
@@ -1258,11 +1260,13 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
         autoDescansos.add(fecha);
         primerDescanso = true;
       }
-      // las demás sin asistencia quedan como falta (no se agregan a autoDescansos)
     }
   }
 
-  // Solo los días de la quincena, sin espacios vacíos
+  // Obtener día de la semana del día 1 (0=Dom, 1=Lun, ... 6=Sáb)
+  const primerDiaSem = (new Date(anio, mes, 1).getDay() + 6) % 7; // 0=Lun, 6=Dom
+
+  // Construir celdas del día
   const makeCelda = (dia) => {
     const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
     const reg = registrosPorFecha.get(fecha);
@@ -1270,12 +1274,20 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
     const esAutoDesc = !esDescanso && autoDescansos.has(fecha);
     const esFuturo = fecha > hoyStr;
     const esHoy = fecha === hoyStr;
+    // Determinar si este día está dentro de la quincena seleccionada
+    const qDesdeDia = fDesde.getDate();
+    const qHastaDia = fHasta.getDate();
+    const enQuincena = dia >= qDesdeDia && dia <= qHastaDia;
+    // Día de corte: 15 (entre 1ra y 2da quincena)
+    const esCorte = dia === 15;
 
     let cls = '';
+    if (!enQuincena) cls += ' sueldo-cal-fuera';
     if (esFuturo) cls += ' sueldo-cal-futuro';
     if (esDescanso || esAutoDesc) cls += ' sueldo-cal-descanso';
     if (!reg && !esDescanso && !esAutoDesc && !esFuturo) cls += ' sueldo-cal-falta';
     if (esHoy) cls += ' sueldo-cal-hoy';
+    if (esCorte) cls += ' sueldo-cal-corte';
 
     let contenido = `<div class="sueldo-cal-num">${dia}</div>`;
     if (esDescanso) {
@@ -1299,34 +1311,39 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
       if (horas > 0 && horas < 8) {
         contenido += `<div class="sueldo-cal-estado parcial">${horas}h</div>`;
       }
-    } else if (!esFuturo) {
+    } else if (!esFuturo && !esDescanso && !esAutoDesc) {
       contenido += `<div class="sueldo-cal-estado falta">Falta</div>`;
     }
 
+    // Doble clic para marcar descanso/falta (solo en días de la quincena actual)
     const esDescActual = (esDescanso || esAutoDesc) ? 1 : 0;
-    const dblClickHandler = `asistAbrirMiniModalDia('${fecha}', ${esDescActual});event.stopPropagation()`;
-    return `<td class="${cls}" ondblclick="${dblClickHandler}" style="cursor:pointer">${contenido}</td>`;
+    const dblClickHandler = enQuincena
+      ? `asistAbrirMiniModalDia('${fecha}', ${esDescActual});event.stopPropagation()`
+      : '';
+
+    return `<td class="${cls}"${dblClickHandler ? ` ondblclick="${dblClickHandler}"` : ''} style="cursor:${enQuincena ? 'pointer' : 'default'}">${contenido}</td>`;
   };
 
-  // Generar filas: rellenar de izquierda a derecha, sin celdas vacías
+  // Generar filas del calendario del mes completo
   let filas = '';
-  let fila = '';
-  let col = 0;
-  for (let d = desdeDia; d <= hastaDia; d++) {
-    fila += makeCelda(d);
-    col++;
-    if (col === 7) {
-      filas += `<tr>${fila}</tr>`;
-      fila = '';
-      col = 0;
+  let celdas = '';
+  // Celdas vacías antes del día 1
+  for (let i = 0; i < primerDiaSem; i++) {
+    celdas += '<td></td>';
+  }
+  for (let d = 1; d <= ultimoDia; d++) {
+    celdas += makeCelda(d);
+    if ((primerDiaSem + d) % 7 === 0) {
+      filas += `<tr>${celdas}</tr>`;
+      celdas = '';
     }
   }
-  if (col > 0) {
-    filas += `<tr>${fila}</tr>`;
+  if (celdas) {
+    filas += `<tr>${celdas}</tr>`;
   }
 
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-  const label = desdeDia === 1 ? `1° Quincena` : `2° Quincena`;
+  const label = fDesde.getDate() === 1 ? `1° Quincena` : `2° Quincena`;
 
   const html = `
     <div style="text-align:center;font-size:.78em;color:var(--text-muted);margin-bottom:6px">

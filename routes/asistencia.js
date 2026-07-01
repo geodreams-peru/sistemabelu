@@ -194,6 +194,13 @@ async function ensureConfigSchema() {
     }
 
     await run(`INSERT OR IGNORE INTO configuracion (id) VALUES (1)`);
+
+    // Garantizar columnas en sueldo_ajustes aunque la DB sea vieja
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_adicionales_override INTEGER DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dom_monto_override FLOAT DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN onp_override BOOLEAN DEFAULT NULL`);
   })().catch(err => {
     configSchemaReady = null;
     throw err;
@@ -273,9 +280,14 @@ function initDB() {
       feriados INTEGER DEFAULT 0,
       faltas_override INTEGER DEFAULT NULL,
       tardanzas_override INTEGER DEFAULT NULL,
+      descansos_override INTEGER DEFAULT NULL,
+      descansos_fechas TEXT DEFAULT NULL,
       prestamo FLOAT DEFAULT 0.0,
       bono FLOAT DEFAULT 0.0,
       nota TEXT DEFAULT '',
+      dias_adicionales_override INTEGER DEFAULT NULL,
+      dom_monto_override FLOAT DEFAULT NULL,
+      onp_override BOOLEAN DEFAULT NULL,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (empleado_id) REFERENCES empleados(id)
     )`);
@@ -623,8 +635,10 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
   const { valorDia, valorHora } = getValoresSalariales(cfg);
   const descTardanza = +cfg.descuento_tardanza || 2;
 
-  // Mantener parametro de contexto para futuras reglas entre quincenas.
-  void regsContext;
+  // fechasContextSet incluye dias fuera del periodo (semanas parciales previas/posteriores)
+  // para detectar si el descanso semanal ya fue consumido en la quincena anterior.
+  const fechasContextSet = new Set(regsContext.map(r => r.fecha));
+  const fechaIngresoEmp = emp.fecha_ingreso ? DateTime.fromISO(String(emp.fecha_ingreso), { zone: TZ }) : null;
 
   const conEntrada = regs.filter(r => r.hora_entrada);
   const completos = conEntrada.filter(r => r.hora_salida);
@@ -688,12 +702,26 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
 
       if (ausenciasParcial > 0) {
         if (semanaParcialCierre) {
-          // Excepcion solicitada: en la semana parcial de cierre se da 1 descanso.
+          // Semana parcial de cierre: 1er ausencia = descanso, las demás = faltas.
           descansosAuto += 1;
           faltasAuto += Math.max(0, ausenciasParcial - 1);
         } else if (semanaParcialInicio) {
-          // Arrastre para la quincena siguiente: el descanso ya se consumo al cierre previo.
-          faltasAuto += ausenciasParcial;
+          // Semana parcial de inicio: revisar si la quincena anterior ya consumió
+          // el descanso de esta semana mirando los días previos a `desde`.
+          let preAusencias = 0;
+          for (let d = lun; d < desde; d = d.plus({ days: 1 })) {
+            // Días anteriores al ingreso del empleado no consumen descanso
+            if (fechaIngresoEmp && d < fechaIngresoEmp) continue;
+            if (!fechasContextSet.has(d.toISODate())) preAusencias++;
+          }
+          if (preAusencias >= 1) {
+            // Descanso semanal ya asignado a la quincena anterior → todas faltas
+            faltasAuto += ausenciasParcial;
+          } else {
+            // Descanso disponible → 1er ausencia = descanso, resto = faltas
+            descansosAuto += 1;
+            faltasAuto += Math.max(0, ausenciasParcial - 1);
+          }
         }
       }
     }
@@ -1211,7 +1239,7 @@ router.get('/sueldos', async (req, res) => {
       const ctxHasta = hastaDT.plus({ days: 6 - weekday(hastaDT) }).toISODate();
       const regs = await all(`SELECT * FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL`,
         [emp.id, periodoEmp.desde, periodoEmp.hasta]);
-      const regsContext = await all(`SELECT * FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL AND hora_salida IS NOT NULL`,
+      const regsContext = await all(`SELECT * FROM registros WHERE empleado_id=? AND fecha>=? AND fecha<=? AND hora_entrada IS NOT NULL`,
         [emp.id, ctxDesde, ctxHasta]);
       const ajuste = await get('SELECT * FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
         [emp.id, periodo.desde, periodo.hasta]);
@@ -1349,6 +1377,11 @@ router.post('/sueldos/descansos', authAdmin, async (req, res) => {
     const { periodo_desde, periodo_hasta, descansos = {} } = req.body;
     if (!periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan fechas del período.' });
     if (typeof descansos !== 'object' || descansos === null) return res.status(400).json({ error: 'Descansos inválidos.' });
+
+    // Garantizar que la columna descansos_fechas exista (migración lazy para DBs viejas)
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`);
+    await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN faltas_override INTEGER DEFAULT NULL`);
 
     const desde = DateTime.fromISO(periodo_desde, { zone: TZ });
     const hasta = DateTime.fromISO(periodo_hasta, { zone: TZ });
