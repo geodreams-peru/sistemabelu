@@ -523,8 +523,33 @@ function contaFiltroParams(desdeId, hastaId) {
   return p.length ? '?' + p.join('&') : '';
 }
 
+async function contaAplicarMesConDatos() {
+  try {
+    const data = await fetch(`${API}/ventas?desde=&hasta=`).then(r => r.json());
+    const f = data?.ventas?.[0]?.fecha;
+    if (!f || !/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+    const y = f.slice(0, 4);
+    const m = f.slice(5, 7);
+    const mNoPad = String(Number(m));
+
+    ['dashMes','ventaMes','balMes'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = m;
+    });
+    const gastoMes = document.getElementById('gastoMes');
+    if (gastoMes) gastoMes.value = mNoPad;
+
+    ['dashAnio','ventaAnio','gastoAnio','balAnio'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = y;
+    });
+  } catch (_) {
+    // Si falla, se conservan filtros por defecto.
+  }
+}
+
 // ── Inicialización cuando el módulo carga ────────────────────────
-(function contaInit() {
+(async function contaInit() {
   // Fecha de hoy por defecto en formularios
   const hoy = new Date().toISOString().split('T')[0];
   const ventaFEl = document.getElementById('ventaFecha');
@@ -543,6 +568,8 @@ function contaFiltroParams(desdeId, hastaId) {
   const balAnio = document.getElementById('balAnio');
   if (balMes) balMes.value = mesActual;
   if (balAnio) balAnio.value = anioActual;
+
+  await contaAplicarMesConDatos();
 
   contaDashboard();
 })();

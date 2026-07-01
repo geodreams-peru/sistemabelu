@@ -537,8 +537,24 @@
     return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  async function comprasAplicarMesConDatos() {
+    try {
+      const d = await fetch(`${API}?limit=1`).then(r => r.json());
+      const f = d?.rows?.[0]?.fecha;
+      if (!f || !/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+      const y = f.slice(0, 4);
+      const m = f.slice(5, 7);
+      const cMes = document.getElementById('cMes'); if (cMes) cMes.value = m;
+      const cAnio = document.getElementById('cAnio'); if (cAnio) cAnio.value = y;
+      const cdm = document.getElementById('cDashMesFiltro'); if (cdm) cdm.value = m;
+      const cda = document.getElementById('cDashAnio'); if (cda) cda.value = y;
+    } catch (_) {
+      // Si falla, se mantienen los filtros por defecto.
+    }
+  }
+
   // ── INIT ─────────────────────────────────────────────────────────
-  (function comprasInit() {
+  (async function comprasInit() {
     const hoy = new Date().toISOString().slice(0, 10);
     const el  = document.getElementById('comprasFechaHoy');
     if (el) el.textContent = new Date().toLocaleDateString('es-PE', { weekday:'long', day:'numeric', month:'long', year:'numeric' });
@@ -549,6 +565,9 @@
     const cAnio = document.getElementById('cAnio'); if (cAnio) cAnio.value = y;
     const cdm = document.getElementById('cDashMesFiltro');  if (cdm) cdm.value = m;
     const cda = document.getElementById('cDashAnio'); if (cda) cda.value = y;
+
+    await comprasAplicarMesConDatos();
+
     comprasIniciarResumen();
     comprasCargarDashboard();
     comprasCargar();

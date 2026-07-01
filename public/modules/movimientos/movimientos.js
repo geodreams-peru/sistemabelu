@@ -31,13 +31,33 @@ function dkpMesHoy() {
 
 let dkpMesActual = dkpMesHoy();
 
+async function dkpAplicarMesConDatos() {
+  try {
+    const fuentes = ['ventas', 'compras', 'movimientos'];
+    for (const f of fuentes) {
+      const d = await fetch(`${DKPAPI}/${f}?mes=`).then(r => r.json());
+      const rows = d?.[f] || [];
+      const fecha = rows?.[0]?.fecha;
+      if (fecha && /^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+        dkpMesActual = fecha.slice(0, 7);
+        return;
+      }
+    }
+  } catch (_) {
+    // Si falla, se mantiene mes actual.
+  }
+}
+
 // ── Inicialización ───────────────────────────────────────────────
-(function dkpInit() {
+(async function dkpInit() {
   const hoy = dkpFechaHoy();
   ['dkpVentaFecha','dkpCompraFecha','dkpCompraFechaIng','dkpMovFecha'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = hoy;
   });
+
+  await dkpAplicarMesConDatos();
+
   const [dkpY, dkpM] = dkpMesActual.split('-');
   const dkpMesSel = document.getElementById('dkpMes');
   const dkpAnioEl = document.getElementById('dkpAnio');
