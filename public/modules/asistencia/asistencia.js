@@ -1253,30 +1253,8 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   const hoy = new Date();
   const hoyStr = hoy.toISOString().slice(0, 10);
 
-  // Calcular auto-descansos para el mes completo
-  const autoDescansos = new Set();
-  const semanas = {};
-  for (let d = 1; d <= ultimoDia; d++) {
-    const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const fd = new Date(fecha + 'T12:00:00');
-    const ws = new Date(fd);
-    ws.setDate(fd.getDate() - ((fd.getDay() + 6) % 7));
-    const key = ws.toISOString().slice(0, 10);
-    if (!semanas[key]) semanas[key] = { fechas: [], conTrabajo: false };
-    semanas[key].fechas.push(fecha);
-    if (registrosPorFecha.has(fecha)) semanas[key].conTrabajo = true;
-  }
-  for (const semana of Object.values(semanas)) {
-    if (!semana.conTrabajo) continue;
-    let primerDescanso = false;
-    for (const fecha of semana.fechas) {
-      if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
-      if (!primerDescanso) {
-        autoDescansos.add(fecha);
-        primerDescanso = true;
-      }
-    }
-  }
+  // Calcular auto-descansos para el mes completo (misma lógica que impresión)
+  const autoDescansos = asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha, fechasDescanso });
 
   // Obtener día de la semana del día 1 (0=Dom, 1=Lun, ... 6=Sáb)
   const primerDiaSem = (new Date(anio, mes, 1).getDay() + 6) % 7; // 0=Lun, 6=Dom
@@ -1391,6 +1369,38 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
     </div>
   `;
   body.innerHTML = html;
+}
+
+function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha, fechasDescanso }) {
+  // Regla crítica: esta función debe ser la única fuente para auto-descanso.
+  // La usan calendario y boleta impresa para evitar desalineaciones.
+  const autoDescansos = new Set();
+  const semanas = {};
+
+  for (let d = 1; d <= ultimoDia; d++) {
+    const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const fd = new Date(fecha + 'T12:00:00');
+    const ws = new Date(fd);
+    ws.setDate(fd.getDate() - ((fd.getDay() + 6) % 7));
+    const key = ws.toISOString().slice(0, 10);
+    if (!semanas[key]) semanas[key] = { fechas: [], conTrabajo: false };
+    semanas[key].fechas.push(fecha);
+    if (registrosPorFecha.has(fecha)) semanas[key].conTrabajo = true;
+  }
+
+  for (const semana of Object.values(semanas)) {
+    if (!semana.conTrabajo) continue;
+    let primerDescanso = false;
+    for (const fecha of semana.fechas) {
+      if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
+      if (!primerDescanso) {
+        autoDescansos.add(fecha);
+        primerDescanso = true;
+      }
+    }
+  }
+
+  return autoDescansos;
 }
 
 // ── Mini modal para marcar descanso/falta por día ────────────────
@@ -1770,27 +1780,15 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   const anioCal = qDesde.getFullYear();
   const mesCal = qDesde.getMonth();
 
-  // Auto-descanso: misma regla que en el modal
-  const autoDescansosPrint = new Set();
-  const semPrint = {};
-  for (let d = desdeDia; d <= hastaDia; d++) {
-    const fecha = `${anioCal}-${String(mesCal + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-    const fd = new Date(fecha + 'T12:00:00');
-    const ws = new Date(fd);
-    ws.setDate(fd.getDate() - ((fd.getDay() + 6) % 7));
-    const key = ws.toISOString().slice(0, 10);
-    if (!semPrint[key]) semPrint[key] = { fechas: [], conTrabajo: false };
-    semPrint[key].fechas.push(fecha);
-    if (registrosPorFecha.has(fecha)) semPrint[key].conTrabajo = true;
-  }
-  for (const sem of Object.values(semPrint)) {
-    if (!sem.conTrabajo) continue;
-    let primerDesc = false;
-    for (const fecha of sem.fechas) {
-      if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
-      if (!primerDesc) { autoDescansosPrint.add(fecha); primerDesc = true; }
-    }
-  }
+  // Auto-descanso del mes completo para no romper semanas que cruzan quincena
+  const ultimoDiaMesCal = new Date(anioCal, mesCal + 1, 0).getDate();
+  const autoDescansosPrint = asistCalcularAutoDescansosMes({
+    anio: anioCal,
+    mes: mesCal,
+    ultimoDia: ultimoDiaMesCal,
+    registrosPorFecha,
+    fechasDescanso
+  });
 
   let calFilas = '';
   let filaCal = '';
