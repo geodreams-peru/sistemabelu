@@ -7,7 +7,7 @@ const sqlite3 = require('sqlite3').verbose();
 const { dbPath, ensureRuntimeDirs, logPaths, UPLOADS_DIR, DATA_DIR } = require('./lib/paths');
 const { shouldMigrate } = require('./lib/db');
 
-const DEPLOY_VERSION = '2026-07-01-data-read-diagnostic-v4';
+const DEPLOY_VERSION = '2026-07-01-smart-db-resolver-v5';
 
 function uniquePaths(list) {
   return [...new Set((list || []).filter(Boolean))];
