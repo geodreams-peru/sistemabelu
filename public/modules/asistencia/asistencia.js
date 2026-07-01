@@ -1263,6 +1263,7 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
     ultimoDia,
     registrosPorFecha,
     fechasDescanso,
+    fechasFalta,
     fechasFeriado,
     fechasNoContable
   });
@@ -1405,7 +1406,7 @@ function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
   body.innerHTML = html;
 }
 
-function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha, fechasDescanso, fechasFeriado = new Set(), fechasNoContable = new Set() }) {
+function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha, fechasDescanso, fechasFalta = new Set(), fechasFeriado = new Set(), fechasNoContable = new Set() }) {
   // Regla crítica: esta función debe ser la única fuente para auto-descanso.
   // La usan calendario y boleta impresa para evitar desalineaciones.
   const autoDescansos = new Set();
@@ -1424,15 +1425,15 @@ function asistCalcularAutoDescansosMes({ anio, mes, ultimoDia, registrosPorFecha
 
   for (const semana of Object.values(semanas)) {
     if (!semana.conTrabajo) continue;
-    let primerDescanso = false;
-    for (const fecha of semana.fechas) {
-      if (fechasNoContable.has(fecha) || fechasFeriado.has(fecha)) continue;
-      if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
-      if (!primerDescanso) {
-        autoDescansos.add(fecha);
-        primerDescanso = true;
-      }
-    }
+
+    const laborables = semana.fechas.filter(f => !fechasNoContable.has(f) && !fechasFeriado.has(f));
+    if (laborables.length !== 7) continue;
+
+    const trabajados = laborables.filter(f => registrosPorFecha.has(f)).length;
+    if (trabajados !== 6) continue;
+
+    const ausente = laborables.find(f => !registrosPorFecha.has(f) && !fechasDescanso.has(f) && !fechasFalta.has(f));
+    if (ausente) autoDescansos.add(ausente);
   }
 
   return autoDescansos;
@@ -1903,6 +1904,7 @@ async function asistImprimirBoleta(empId, desde, hasta) {
     ultimoDia: ultimoDiaMesCal,
     registrosPorFecha,
     fechasDescanso,
+    fechasFalta,
     fechasFeriado,
     fechasNoContable
   });
