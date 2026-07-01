@@ -713,16 +713,16 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
     }
     if (diasSem.length === 7) {
       const trabSem = diasSem.filter(d => fechasAsistencia.has(d)).length;
-      const ausencias = 7 - trabSem;
-      if (trabSem === 7) diasAdicionales += 2;
-      else {
-        if (ausencias >= 1) {
-          descansosAuto += 1;
-          faltasAuto += Math.max(0, ausencias - 1);
-        }
-        if (trabSem <= 5) {
-          domMonto += (valorDia / 7) * trabSem;
-        }
+      if (trabSem === 7) {
+        // Regla: semana completa trabajada = 2 dias adicionales (se pagan 9 dias en total)
+        diasAdicionales += 2;
+      } else if (trabSem === 6) {
+        // Regla: con 6 dias trabajados se paga 1 descanso
+        descansosAuto += 1;
+      } else {
+        // Regla: con 5 o menos, existe 1 descanso no pagado; faltas = 6 - trabajados
+        faltasAuto += Math.max(0, 6 - trabSem);
+        domMonto += (valorDia / 7) * trabSem;
       }
     } else if (diasSem.length > 0) {
       const trabParcial = diasSem.filter(d => fechasAsistencia.has(d)).length;
