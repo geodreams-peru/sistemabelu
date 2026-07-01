@@ -1108,24 +1108,9 @@ async function asistCargarSueldos() {
   t.innerHTML    = '<p class="text-center text-muted" style="padding:30px">Calculando...</p>';
   try {
     const data = await fetch(`${AAPI}/sueldos?anio=${anio}&mes=${mes}&quincena=${quincena}&_=${Date.now()}`, { cache: 'no-store' }).then(r => r.json());
-    const esAdmin = !!window.usuarioActual?.permisos?.asistencia_config;
-    // #region agent log
-    if (data.resultados?.length) {
-      const m = data.resultados[0];
-      fetch('http://127.0.0.1:7505/ingest/213bef8c-9b8e-4768-8ce2-5544a6b05bf1',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'61705f'},body:JSON.stringify({sessionId:'61705f',hypothesisId:'H5',location:'asistencia.js:asistCargarSueldos',message:'Datos recibidos del servidor',data:{empId:m.emp?.id,descansos:m.descansos,descansos_auto:m.descansos_auto,descansos_manual:m.descansos_manual??null,total:data.resultados.length},timestamp:Date.now()})}).catch(()=>{});
-    }
-    // #endregion
+    window._sueldosData = data;
     if (!data.resultados?.length) { t.innerHTML = '<p class="text-center text-muted" style="padding:30px">Sin embajadores activos</p>'; return; }
     const p = data.periodo;
-    const asistEncodeAjusteOriginal = (r) => encodeURIComponent(JSON.stringify({
-      feriados: parseInt(r.feriados || 0, 10) || 0,
-      faltas_override: r.faltas_manual ?? null,
-      tardanzas_override: r.tardanza_manual ?? null,
-      descansos_override: r.descansos_manual ?? null,
-      prestamo: parseFloat(r.prestamo || 0) || 0,
-      bono: parseFloat(r.bono || 0) || 0,
-      nota: r.nota || ''
-    }));
 
     t.innerHTML = `
       <div style="padding:14px 20px;border-bottom:1px solid var(--border);font-size:.85em;color:var(--text-muted)">
@@ -1133,100 +1118,422 @@ async function asistCargarSueldos() {
         &nbsp;•&nbsp; Valor hora: <strong>${aFmt(data.valorHora)}</strong>
         &nbsp;•&nbsp; Horas parciales desde <strong>${data.baseHoraParcial || '07:00'}</strong>
       </div>
-      <table class="data-table asistencia-sueldos-table" style="font-size:.94em">
+      <table class="data-table asistencia-sueldos-table" style="font-size:.78em;width:100%">
         <thead><tr>
-          <th class="asistencia-sueldos-empleado" style="white-space:nowrap;padding:8px 5px">Embajador</th>
-          <th title="Dias trabajados" style="white-space:nowrap;padding:8px 4px">Días</th>
-          <th title="Horas trabajadas en jornadas menores a 8 horas" style="white-space:nowrap;padding:8px 4px">Horas</th>
-          <th title="Dias adicionales por semana completa" style="white-space:nowrap;padding:8px 4px">Adic.</th>
-          <th title="Dias feriados trabajados" style="white-space:nowrap;padding:8px 4px">Feriados</th>
-          <th title="Dominical proporcional" style="white-space:nowrap;padding:8px 4px">DOM</th>
-          <th title="Dias descansado" style="white-space:nowrap;padding:8px 4px">Desc.</th>
-          <th title="Faltas/Descuento" style="white-space:nowrap;padding:8px 4px;min-width:66px">Faltas</th>
-          <th title="Tardanzas de la quincena" style="white-space:nowrap;padding:8px 4px;min-width:66px">Tardanzas</th>
-          <th title="Descuento por ONP" style="white-space:nowrap;padding:8px 4px">ONP</th>
-          <th title="Premio adicional" style="white-space:nowrap;padding:8px 4px">Bono</th>
-          <th title="Prestamo en quincena" style="white-space:nowrap;padding:8px 4px">Préstamo</th>
-          <th title="Total final" style="white-space:nowrap;padding:8px 4px">SUELDO</th>
-          <th class="asistencia-sueldos-nota" title="Nota" style="padding:8px 4px;min-width:128px">Nota</th>
-          <th class="asistencia-sueldos-acciones" style="padding:8px 4px"></th>
+          <th class="asistencia-sueldos-empleado" style="padding:6px 3px">Embajador</th>
+          <th title="Dias trabajados" style="padding:6px 2px;text-align:center">Días</th>
+          <th title="Horas trabajadas en jornadas menores a 8 horas" style="padding:6px 2px;text-align:center">Horas</th>
+          <th title="Dias adicionales por semana completa" style="padding:6px 2px;text-align:center">Adic</th>
+          <th title="Dias feriados trabajados" style="padding:6px 2px;text-align:center">Fer</th>
+          <th title="Dominical proporcional" style="padding:6px 2px;text-align:center">DOM</th>
+          <th title="Dias descansado" style="padding:6px 2px;text-align:center">Desc</th>
+          <th title="Faltas/Descuento" style="padding:6px 2px;text-align:center">Faltas</th>
+          <th title="Tardanzas de la quincena" style="padding:6px 2px;text-align:center">Tard</th>
+          <th title="Descuento por ONP" style="padding:6px 2px;text-align:center">ONP</th>
+          <th title="Premio adicional" style="padding:6px 2px;text-align:center">Bono</th>
+          <th title="Prestamo en quincena" style="padding:6px 2px;text-align:center">Prést</th>
+          <th title="Total final" style="padding:6px 2px;text-align:center">SUELDO</th>
+          <th class="asistencia-sueldos-nota" title="Nota" style="padding:6px 2px;text-align:center">Nota</th>
+          <th style="padding:6px 2px;width:60px"></th>
         </tr></thead>
-        <tbody>${data.resultados.map(r => `<tr data-empid="${r.emp.id}" data-subtotal="${r.subtotal}" data-onp="${r.onp_monto}" data-base="${r.base_sin_descuentos}" data-onp-rate="${r.onp_rate || 0}" data-faltas-auto="${r.faltas_auto}" data-tardanzas-auto="${r.tardanza_auto}" data-descansos-auto="${Number.isFinite(+r.descansos_auto) ? r.descansos_auto : 0}" data-descansos-efectivo="${r.descansos}" data-descansos-manual="${r.descansos_manual !== null && r.descansos_manual !== undefined ? '1' : '0'}" data-valor-dia="${data.valorDia}" data-faltas-unit="${r.faltas_descuento_unitario}" data-tardanzas-unit="${r.tardanza_descuento_unitario}" data-orig-ajuste="${asistEncodeAjusteOriginal(r)}">
-          <td class="asistencia-sueldos-empleado" style="white-space:nowrap;padding:6px 5px"><strong>${r.emp.nombre_completo}</strong><br><span style="color:var(--text-muted);font-size:.72em">${r.emp.cargo||''}</span></td>
-          <td style="text-align:center;white-space:nowrap;padding:6px 4px">${r.dias_trabajados}</td>
-          <td style="text-align:center;white-space:nowrap;padding:6px 4px;color:var(--info)">${r.horas_trabajadas > 0 ? r.horas_trabajadas : '—'}</td>
-          <td style="text-align:center;color:var(--success);white-space:nowrap;padding:6px 4px">${r.diasAdicionales}</td>
-          <td style="white-space:nowrap;padding:4px 4px;text-align:center">
-            ${esAdmin
-              ? `<input type="number" id="sueldoFeriados_${r.emp.id}" min="0" step="1" value="${parseInt(r.feriados || 0, 10)}"
-                  style="width:40px;height:20px;padding:0 1px;border:none;border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;text-align:center;font-size:.78em;line-height:1.1">`
-              : `<span style="color:var(--info)">${r.feriados || 0}</span>`}
+        <tbody>${data.resultados.map(r => {
+          const empName = r.emp.nombre_completo || '';
+          const empCargo = r.emp.cargo || '';
+          return `<tr data-empid="${r.emp.id}">
+          <td class="asistencia-sueldos-empleado" style="white-space:nowrap;padding:4px 3px">
+            <a href="#" class="sueldo-nombre-link" onclick="asistAbrirModalCalendario(${r.emp.id},'${p.desde}','${p.hasta}');return false"
+               style="text-decoration:none;color:inherit;cursor:pointer">
+              <strong>${empName}</strong>
+            </a>
+            <br><span style="color:var(--text-muted);font-size:.72em">${empCargo}</span>
           </td>
-          <td style="white-space:nowrap;padding:6px 4px;text-align:right;color:var(--info)">${(r.dom_monto || 0) > 0 ? aFmt(r.dom_monto) : '—'}</td>
-          <td style="text-align:center;white-space:nowrap;padding:4px 4px">
-            ${esAdmin
-              ? `<div class="sueldo-stepper">
-                  <button type="button" class="sueldo-stepper-btn" onclick="asistAjustarDescansos(${r.emp.id}, 1)" title="Aumentar descansos">▲</button>
-                  <span class="sueldo-stepper-val" id="sueldoDescansosVal_${r.emp.id}">${r.descansos}</span>
-                  <input type="hidden" id="sueldoDescansos_${r.emp.id}" value="${r.descansos}">
-                  <button type="button" class="sueldo-stepper-btn" onclick="asistAjustarDescansos(${r.emp.id}, -1)" title="Disminuir descansos">▼</button>
-                </div>
-                <small id="sueldoDescansosEstado_${r.emp.id}" class="sueldo-stepper-estado" style="color:${r.descansos_manual !== null && r.descansos_manual !== undefined ? 'var(--warning)' : 'var(--text-muted)'}">${r.descansos_manual !== null && r.descansos_manual !== undefined ? `Manual (Auto: ${r.descansos_auto})` : `Auto: ${r.descansos_auto}`}</small>`
-              : `<span style="color:var(--text-muted)">${r.descansos}</span>`}
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px">${r.dias_trabajados}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--info)">${r.horas_trabajadas > 0 ? r.horas_trabajadas : '—'}</td>
+          <td style="text-align:center;color:var(--success);white-space:nowrap;padding:4px 2px">${r.diasAdicionales}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--info)">${r.feriados || 0}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--info);font-size:.92em">${(r.dom_monto || 0) > 0 ? aFmt(r.dom_monto) : '—'}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--text-muted)">${r.descansos}</td>
+          <td style="text-align:center;color:var(--danger);white-space:nowrap;padding:4px 2px">
+            ${r.faltas}<br><small>(${aFmt(r.faltas_monto)})</small>
           </td>
-          <td style="text-align:center;color:var(--danger);white-space:nowrap;padding:4px 4px;min-width:66px">
-            ${esAdmin
-              ? `<input type="number" id="sueldoFaltas_${r.emp.id}" min="0" step="1" value="${r.faltas_manual ?? ''}" placeholder="${r.faltas_auto}"
-                  oninput="asistRecalcularSueldo(${r.emp.id})"
-                  style="width:44px;height:20px;padding:0 1px;border:none;border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;text-align:center;font-size:.78em;line-height:1.1">`
-              : `${r.faltas}`}
-            <br><small id="sueldoFaltasMonto_${r.emp.id}">(${aFmt(r.faltas_monto)})</small>
-            ${esAdmin
-              ? `<br><small id="sueldoFaltasEstado_${r.emp.id}" style="color:${r.faltas_manual !== null && r.faltas_manual !== undefined ? 'var(--warning)' : 'var(--text-muted)'}">${r.faltas_manual !== null && r.faltas_manual !== undefined ? `Manual (Auto: ${r.faltas_auto})` : `Auto: ${r.faltas_auto}`}</small>`
-              : ''}
+          <td style="text-align:center;color:var(--warning);white-space:nowrap;padding:4px 2px">
+            ${r.tardanza_count}<br><small>(${aFmt(r.tardanza_monto)})</small>
           </td>
-          <td style="text-align:center;color:var(--warning);white-space:nowrap;padding:4px 4px;min-width:66px">
-            ${esAdmin
-              ? `<input type="number" id="sueldoTardanzas_${r.emp.id}" min="0" step="1" value="${r.tardanza_manual ?? ''}" placeholder="${r.tardanza_auto}"
-                  oninput="asistRecalcularSueldo(${r.emp.id})"
-                  style="width:44px;height:20px;padding:0 1px;border:none;border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;text-align:center;font-size:.78em;line-height:1.1">`
-              : `${r.tardanza_count}`}
-            <br><small id="sueldoTardanzaMonto_${r.emp.id}">(${aFmt(r.tardanza_monto)})</small>
-            ${esAdmin
-              ? `<br><small id="sueldoTardanzaEstado_${r.emp.id}" style="color:${r.tardanza_manual !== null && r.tardanza_manual !== undefined ? 'var(--warning)' : 'var(--text-muted)'}">${r.tardanza_manual !== null && r.tardanza_manual !== undefined ? `Manual (Auto: ${r.tardanza_auto})` : `Auto: ${r.tardanza_auto}`}</small>`
-              : ''}
-          </td>
-          <td style="color:var(--danger);white-space:nowrap;padding:6px 4px"><span id="sueldoOnp_${r.emp.id}">${r.onp_monto > 0 ? aFmt(r.onp_monto) : '—'}</span></td>
-          <td style="white-space:nowrap;padding:4px 4px">
-            ${esAdmin
-              ? `<input type="number" id="sueldoBono_${r.emp.id}" min="0" step="0.01" value="${+r.bono > 0 ? (+r.bono).toFixed(2) : ''}"
-                  oninput="asistRecalcularSueldo(${r.emp.id})"
-                  style="width:54px;height:20px;padding:0 1px;border:none;border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;text-align:right;font-size:.78em;line-height:1.1">`
-              : `<span style="color:var(--success)">${r.bono > 0 ? aFmt(r.bono) : '—'}</span>`}
-          </td>
-          <td style="white-space:nowrap;padding:4px 4px">
-            ${esAdmin
-              ? `<input type="number" id="sueldoPrestamo_${r.emp.id}" min="0" step="0.01" value="${+r.prestamo > 0 ? (+r.prestamo).toFixed(2) : ''}"
-                  oninput="asistRecalcularSueldo(${r.emp.id})"
-                  style="width:54px;height:20px;padding:0 1px;border:none;border-bottom:1px solid var(--border);border-radius:0;background:transparent;box-shadow:none;text-align:right;font-size:.78em;line-height:1.1">`
-              : `<span style="color:var(--danger)">${r.prestamo > 0 ? aFmt(r.prestamo) : '—'}</span>`}
-          </td>
-          <td style="white-space:nowrap;padding:6px 4px"><strong id="sueldoTotal_${r.emp.id}" style="color:${r.sueldo >= 0 ? 'var(--success)' : 'var(--danger)'};font-size:.96em">${aFmt(r.sueldo)}</strong></td>
-          <td class="asistencia-sueldos-nota" style="padding:4px 4px;vertical-align:top">
-            ${esAdmin
-              ? `<textarea id="sueldoNota_${r.emp.id}" rows="2" placeholder="—"
-                  style="width:124px;padding:3px 5px;border:1px solid var(--border);border-radius:4px;background:transparent;font-size:.78em;line-height:1.35;resize:none;font-family:inherit;color:inherit">${(r.nota||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>`
-              : `<span style="color:var(--text-muted);font-size:.82em;white-space:pre-wrap">${(r.nota||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || '—'}</span>`}
-          </td>
-          <td class="asistencia-sueldos-acciones" style="white-space:nowrap;padding:4px 4px">
-            ${esAdmin
-              ? `<div class="asistencia-sueldos-acciones-wrap"><button class="btn btn-primary btn-sm" style="padding:4px 6px;min-height:20px;font-size:.78em" title="Guardar ajustes" onclick="asistGuardarAjusteFila(${r.emp.id},'${p.desde}','${p.hasta}')">💾</button>
-                 <button class="btn btn-sm" style="padding:4px 6px;min-height:20px;font-size:.78em;background:var(--bg-darker);border:1px solid var(--border)" title="Imprimir boleta" onclick="asistImprimirBoleta(${r.emp.id},'${p.desde}','${p.hasta}')">🖨️</button></div>`
-              : ''}
-          </td>
-        </tr>`).join('')}</tbody>
+          <td style="color:var(--danger);white-space:nowrap;padding:4px 2px;text-align:center">${r.onp_monto > 0 ? aFmt(r.onp_monto) : '—'}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--success)">${r.bono > 0 ? aFmt(r.bono) : '—'}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px;color:var(--danger)">${r.prestamo > 0 ? aFmt(r.prestamo) : '—'}</td>
+          <td style="text-align:center;white-space:nowrap;padding:4px 2px"><strong style="color:${r.sueldo >= 0 ? 'var(--success)' : 'var(--danger)'};font-size:.9em">${aFmt(r.sueldo)}</strong></td>
+          <td class="asistencia-sueldos-nota" style="padding:4px 2px;font-size:.75em;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${(r.nota||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') || '—'}</td>
+          <td style="text-align:center;padding:2px"><button style="padding:6px 0;min-height:30px;font-size:.68em;background:var(--bg-darker);border:1px solid var(--border);border-radius:4px;cursor:pointer;width:100%;display:block;color:var(--text-light);line-height:1" title="Imprimir boleta" onclick="asistImprimirBoleta(${r.emp.id},'${p.desde}','${p.hasta}')">🖨️</button></td>
+        </tr>`;
+        }).join('')}</tbody>
       </table>`;
   } catch (e) { t.innerHTML = `<p class="text-center text-muted" style="padding:30px">Error: ${e.message}</p>`; }
+}
+
+// ── Modal calendario sueldos ─────────────────────────────────────
+
+let _sueldoCalData = null; // datos del empleado actual en el modal
+
+function asistCerrarModalCalendario() {
+  document.getElementById('sueldoCalModal').classList.add('hide');
+  _sueldoCalData = null;
+  asistCargarSueldos();
+}
+
+async function asistAbrirModalCalendario(empId, desde, hasta) {
+  const overlay = document.getElementById('sueldoCalModal');
+  const body = document.getElementById('sueldoCalBody');
+  const editor = document.getElementById('sueldoCalEditorGrid');
+  overlay.classList.remove('hide');
+  body.innerHTML = '<p class="text-center text-muted" style="padding:30px">Cargando...</p>';
+  editor.innerHTML = '';
+
+  try {
+    // Obtener datos del empleado desde la tabla ya cargada
+    const sueldosData = window._sueldosData;
+    const empData = sueldosData?.resultados?.find(r => r.emp.id === empId);
+    if (!empData) throw new Error('No se encontraron datos del empleado');
+
+    document.getElementById('sueldoCalTitulo').textContent = `📅 ${empData.emp.nombre_completo}`;
+    document.getElementById('sueldoCalSubtitulo').textContent = `${empData.emp.cargo || '—'} • ${desde} al ${hasta}`;
+
+    // Obtener data detallada del backend (asistencias por día)
+    const boletaRes = await fetch(`${AAPI}/sueldos/boleta?emp_id=${empId}&desde=${desde}&hasta=${hasta}&_=${Date.now()}`);
+    const boleta = await boletaRes.json();
+    if (!boleta.ok) throw new Error(boleta.error || 'Error al cargar data');
+
+    _sueldoCalData = { empData, boleta, empId, desde, hasta };
+
+    // Renderizar calendario
+    asistRenderCalendario(boleta, empData, desde, hasta);
+
+    // Renderizar editor de campos
+    asistRenderEditorModal(empData);
+  } catch (e) {
+    body.innerHTML = `<p class="text-center text-danger" style="padding:30px">Error: ${e.message}</p>`;
+  }
+}
+
+function asistRenderCalendario(boleta, empData, qDesde, qHasta) {
+  const body = document.getElementById('sueldoCalBody');
+  const { registros, descansosFechas, periodo } = boleta;
+  const fechasDescanso = new Set((descansosFechas || []).filter(f => typeof f === 'string'));
+  const registrosPorFecha = new Map(registros.map(r => [r.fecha, r]));
+
+  // Usar las fechas originales de la quincena (no el periodo recortado del empleado)
+  const fDesde = new Date(qDesde + 'T12:00:00');
+  const fHasta = new Date(qHasta + 'T12:00:00');
+  const anio = fDesde.getFullYear();
+  const mes = fDesde.getMonth();
+  const desdeDia = fDesde.getDate();
+  const hastaDia = fHasta.getDate();
+  const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const hoy = new Date();
+  const hoyStr = hoy.toISOString().slice(0, 10);
+
+  // Pre-calcular auto-descansos según regla semanal Lun-Dom
+  // En cada semana de 7 días (Lun-Dom), si hay al menos 1 asistencia:
+  //   - El 1er día sin asistencia es DESCANSO
+  //   - Los siguientes días sin asistencia en esa misma semana son FALTA
+  const autoDescansos = new Set();
+  // Agrupar días por semana (clave = lunes)
+  const semanas = {};
+  for (let d = desdeDia; d <= hastaDia; d++) {
+    const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const fd = new Date(fecha + 'T12:00:00');
+    const ws = new Date(fd);
+    ws.setDate(fd.getDate() - ((fd.getDay() + 6) % 7));
+    const key = ws.toISOString().slice(0, 10);
+    if (!semanas[key]) semanas[key] = { fechas: [], conTrabajo: false };
+    semanas[key].fechas.push(fecha);
+    if (registrosPorFecha.has(fecha)) semanas[key].conTrabajo = true;
+  }
+  for (const semana of Object.values(semanas)) {
+    if (!semana.conTrabajo) continue; // sin trabajo → todas faltas
+    let primerDescanso = false;
+    for (const fecha of semana.fechas) {
+      if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
+      if (!primerDescanso) {
+        autoDescansos.add(fecha);
+        primerDescanso = true;
+      }
+      // las demás sin asistencia quedan como falta (no se agregan a autoDescansos)
+    }
+  }
+
+  // Solo los días de la quincena, sin espacios vacíos
+  const makeCelda = (dia) => {
+    const fecha = `${anio}-${String(mes + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+    const reg = registrosPorFecha.get(fecha);
+    const esDescanso = fechasDescanso.has(fecha);
+    const esAutoDesc = !esDescanso && autoDescansos.has(fecha);
+    const esFuturo = fecha > hoyStr;
+    const esHoy = fecha === hoyStr;
+
+    let cls = '';
+    if (esFuturo) cls += ' sueldo-cal-futuro';
+    if (esDescanso || esAutoDesc) cls += ' sueldo-cal-descanso';
+    if (!reg && !esDescanso && !esAutoDesc && !esFuturo) cls += ' sueldo-cal-falta';
+    if (esHoy) cls += ' sueldo-cal-hoy';
+
+    let contenido = `<div class="sueldo-cal-num">${dia}</div>`;
+    if (esDescanso) {
+      contenido += `<div class="sueldo-cal-estado descanso">Descanso</div>`;
+    } else if (esAutoDesc) {
+      contenido += `<div class="sueldo-cal-estado descanso">Descanso*</div>`;
+    } else if (reg) {
+      const entrada = reg.hora_entrada || '';
+      const salida = reg.hora_salida || '';
+      const esTarde = reg.tarde;
+      const jornada = reg.jornada || {};
+      const horas = parseFloat(jornada.horas || 0);
+
+      contenido += `<div class="sueldo-cal-hora${esTarde ? ' sueldo-cal-tarde' : ''}">${entrada || '—'}</div>`;
+      contenido += `<div class="sueldo-cal-hora">${salida || '—'}</div>`;
+      if (esTarde) {
+        contenido += `<div class="sueldo-cal-estado tarde">Tardanza</div>`;
+      } else {
+        contenido += `<div class="sueldo-cal-estado ok">✓</div>`;
+      }
+      if (horas > 0 && horas < 8) {
+        contenido += `<div class="sueldo-cal-estado parcial">${horas}h</div>`;
+      }
+    } else if (!esFuturo) {
+      contenido += `<div class="sueldo-cal-estado falta">Falta</div>`;
+    }
+
+    const esDescActual = (esDescanso || esAutoDesc) ? 1 : 0;
+    const dblClickHandler = `asistAbrirMiniModalDia('${fecha}', ${esDescActual});event.stopPropagation()`;
+    return `<td class="${cls}" ondblclick="${dblClickHandler}" style="cursor:pointer">${contenido}</td>`;
+  };
+
+  // Generar filas: rellenar de izquierda a derecha, sin celdas vacías
+  let filas = '';
+  let fila = '';
+  let col = 0;
+  for (let d = desdeDia; d <= hastaDia; d++) {
+    fila += makeCelda(d);
+    col++;
+    if (col === 7) {
+      filas += `<tr>${fila}</tr>`;
+      fila = '';
+      col = 0;
+    }
+  }
+  if (col > 0) {
+    filas += `<tr>${fila}</tr>`;
+  }
+
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const label = desdeDia === 1 ? `1° Quincena` : `2° Quincena`;
+
+  const html = `
+    <div style="text-align:center;font-size:.78em;color:var(--text-muted);margin-bottom:6px">
+      ${label} — ${meses[mes]} ${anio}
+    </div>
+    <table class="sueldo-cal-grid">
+      <thead><tr>${DIAS.map(d => `<th>${d}</th>`).join('')}</tr></thead>
+      <tbody>${filas}</tbody>
+    </table>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:.62em;color:var(--text-muted)">
+      <span>✓ Asistencia</span>
+      <span style="color:var(--warning)">⚠ Tardanza</span>
+      <span style="color:var(--danger)">✗ Falta</span>
+      <span style="color:#2f855a">● Descanso</span>
+      <span style="color:#166534">● Descanso* (1°/semana)</span>
+      <span style="color:var(--info)">⏱ &lt;8h</span>
+      <span style="font-style:italic">↔ doble clic</span>
+    </div>
+    <div class="sueldo-cal-mini-overlay hide" id="sueldoMiniModal" onclick="if(event.target===this) asistCerrarMiniModalDia()">
+      <div class="sueldo-cal-mini-card" id="sueldoMiniCard">
+        <div style="font-size:.8em;color:var(--text-muted);margin-bottom:8px" id="sueldoMiniFecha">—</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-sm" style="background:rgba(47,133,90,0.2);color:#2f855a;border:1px solid #2f855a;padding:6px 14px"
+                  id="sueldoMiniBtnDescanso" onclick="asistMarcarDiaDescanso(true)">🌴 Descanso</button>
+          <button class="btn btn-sm" style="background:rgba(197,48,48,0.15);color:#c53030;border:1px solid #c53030;padding:6px 14px"
+                  id="sueldoMiniBtnFalta" onclick="asistMarcarDiaDescanso(false)">✗ Falta</button>
+          <button class="btn btn-sm btn-secondary" style="padding:6px 14px" onclick="asistCerrarMiniModalDia()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  `;
+  body.innerHTML = html;
+}
+
+// ── Mini modal para marcar descanso/falta por día ────────────────
+
+let _sueldoMiniFechaActual = null;
+
+function asistAbrirMiniModalDia(fecha, esDescansoActual) {
+  _sueldoMiniFechaActual = fecha;
+  const overlay = document.getElementById('sueldoMiniModal');
+  if (!overlay) return;
+  overlay.classList.remove('hide');
+  const f = new Date(fecha + 'T12:00:00');
+  const diaSem = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][f.getDay()];
+  document.getElementById('sueldoMiniFecha').textContent = `${diaSem} ${f.getDate()}`;
+  // Resaltar botón activo si ya es descanso
+  const btnD = document.getElementById('sueldoMiniBtnDescanso');
+  const btnF = document.getElementById('sueldoMiniBtnFalta');
+  btnD.style.opacity = esDescansoActual ? '1' : '0.45';
+  btnF.style.opacity = esDescansoActual ? '0.45' : '1';
+}
+
+function asistCerrarMiniModalDia() {
+  const overlay = document.getElementById('sueldoMiniModal');
+  if (overlay) overlay.classList.add('hide');
+  _sueldoMiniFechaActual = null;
+}
+
+async function asistMarcarDiaDescanso(marcarDescanso) {
+  if (!_sueldoCalData || !_sueldoMiniFechaActual) return;
+  const { empId, desde, hasta, boleta } = _sueldoCalData;
+
+  // Obtener estado actual de descansos desde la boleta
+  const descansosActuales = new Set((boleta.descansosFechas || []).filter(f => typeof f === 'string'));
+  const yaEsDescanso = descansosActuales.has(_sueldoMiniFechaActual);
+
+  if (marcarDescanso === yaEsDescanso) {
+    // Ya está en el estado solicitado
+    asistCerrarMiniModalDia();
+    return;
+  }
+
+  // Construir payload: modificar solo esta fecha
+  if (marcarDescanso) {
+    descansosActuales.add(_sueldoMiniFechaActual);
+  } else {
+    descansosActuales.delete(_sueldoMiniFechaActual);
+  }
+
+  const payload = {};
+  payload[empId] = [...descansosActuales].sort();
+
+  const btnDesc = document.getElementById('sueldoMiniBtnDescanso');
+  const btnFal = document.getElementById('sueldoMiniBtnFalta');
+  const txtDesc = btnDesc?.textContent || '';
+  const txtFal = btnFal?.textContent || '';
+  if (btnDesc) btnDesc.disabled = true;
+  if (btnFal) btnFal.disabled = true;
+
+  try {
+    const res = await fetch(`${AAPI}/sueldos/descansos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ periodo_desde: desde, periodo_hasta: hasta, descansos: payload })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      // Refrescar el calendario con los nuevos datos
+      _sueldoCalData.boleta.descansosFechas = [...descansosActuales].sort();
+      asistCerrarMiniModalDia();
+      asistRenderCalendario(_sueldoCalData.boleta, _sueldoCalData.empData, _sueldoCalData.desde, _sueldoCalData.hasta);
+    } else {
+      alert(data.error || 'Error al guardar');
+    }
+  } catch (e) {
+    alert(e.message || 'Error de red');
+  } finally {
+    if (btnDesc) btnDesc.disabled = false;
+    if (btnFal) btnFal.disabled = false;
+  }
+}
+
+function asistRenderEditorModal(empData) {
+  const editor = document.getElementById('sueldoCalEditorGrid');
+  const {
+    feriados = 0, bono = 0, prestamo = 0,
+    dom_monto = 0, diasAdicionales = 0,
+    onp_activo = false, onp_override,
+    diasAdicionalesOverride, dom_monto_override
+  } = empData;
+
+  const onpChecked = onp_override !== null && onp_override !== undefined ? !!onp_override : onp_activo;
+  const domVal = dom_monto_override !== null && dom_monto_override !== undefined ? dom_monto_override : dom_monto;
+  const adicVal = diasAdicionalesOverride !== null && diasAdicionalesOverride !== undefined ? diasAdicionalesOverride : diasAdicionales;
+
+  editor.innerHTML = `
+    <div class="sueldo-cal-editor-item">
+      <label>Feriados</label>
+      <input type="number" id="sueldoModalFeriados" min="0" step="1" value="${feriados}">
+    </div>
+    <div class="sueldo-cal-editor-item">
+      <label>ONP</label>
+      <input type="checkbox" id="sueldoModalOnp" ${onpChecked ? 'checked' : ''}>
+    </div>
+    <div class="sueldo-cal-editor-item">
+      <label>Bono (S/.)</label>
+      <input type="number" id="sueldoModalBono" min="0" step="0.01" value="${+bono > 0 ? (+bono).toFixed(2) : ''}">
+    </div>
+    <div class="sueldo-cal-editor-item">
+      <label>Préstamo (S/.)</label>
+      <input type="number" id="sueldoModalPrestamo" min="0" step="0.01" value="${+prestamo > 0 ? (+prestamo).toFixed(2) : ''}">
+    </div>
+    <div class="sueldo-cal-editor-item">
+      <label>Día Proporcional (S/.)</label>
+      <input type="number" id="sueldoModalDom" min="0" step="0.01" value="${+domVal > 0 ? (+domVal).toFixed(2) : ''}">
+    </div>
+    <div class="sueldo-cal-editor-item">
+      <label>Días Adicionales</label>
+      <input type="number" id="sueldoModalAdic" min="0" step="1" value="${adicVal}">
+    </div>
+  `;
+}
+
+async function asistGuardarAjusteModal() {
+  if (!_sueldoCalData) return;
+  const { empData, empId, desde, hasta } = _sueldoCalData;
+
+  const feriados = parseInt(document.getElementById('sueldoModalFeriados')?.value || '0', 10) || 0;
+  const onpChecked = document.getElementById('sueldoModalOnp')?.checked || false;
+  const bono = parseFloat(document.getElementById('sueldoModalBono')?.value || '0') || 0;
+  const prestamo = parseFloat(document.getElementById('sueldoModalPrestamo')?.value || '0') || 0;
+  const domMonto = parseFloat(document.getElementById('sueldoModalDom')?.value || '0') || 0;
+  const adic = parseInt(document.getElementById('sueldoModalAdic')?.value || '0', 10) || 0;
+
+  const onpOriginal = empData.onp_override !== null && empData.onp_override !== undefined ? !!empData.onp_override : empData.onp_activo;
+  const domOriginal = empData.dom_monto_override !== null && empData.dom_monto_override !== undefined ? empData.dom_monto_override : empData.dom_monto;
+  const adicOriginal = empData.diasAdicionalesOverride !== null && empData.diasAdicionalesOverride !== undefined ? empData.diasAdicionalesOverride : empData.diasAdicionales;
+
+  const payload = {
+    empleado_id: empId,
+    periodo_desde: desde,
+    periodo_hasta: hasta,
+    feriados,
+    prestamo,
+    bono,
+    onp_override: onpChecked,
+    dom_monto_override: domMonto,
+    dias_adicionales_override: adic,
+    faltas_override: null,
+    tardanzas_override: null,
+    descansos_override: null,
+    nota: empData.nota || ''
+  };
+
+  const btn = document.getElementById('sueldoCalGuardarBtn');
+  const txtOriginal = btn?.textContent || '💾 Guardar';
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+
+  try {
+    const res = await fetch(`${AAPI}/sueldos/ajuste`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json();
+    if (data.ok) {
+      asistCerrarModalCalendario();
+      asistCargarSueldos();
+    } else {
+      alert(data.error || 'No se pudo guardar.');
+    }
+  } catch (e) {
+    alert(e.message || 'Error de red');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = txtOriginal; }
+  }
 }
 
 function asistAjustarDescansos(empId, delta) {
@@ -1332,253 +1639,250 @@ function asistRecalcularSueldo(empId) {
 }
 
 async function asistImprimirBoleta(empId, desde, hasta) {
-  const data = await fetch(`${AAPI}/sueldos/boleta?emp_id=${empId}&desde=${desde}&hasta=${hasta}`).then(r => r.json());
+  const data = await fetch(`${AAPI}/sueldos/boleta?emp_id=${empId}&desde=${desde}&hasta=${hasta}&_=${Date.now()}`).then(r => r.json());
   if (!data.ok) { alert('Error al cargar boleta'); return; }
 
-  const { emp, ajuste, registros, valorDia, valorHora, descTardanza, periodo, resumen, baseHoraParcial } = data;
-  // Extraer todos los campos relevantes del resumen para la tabla de liquidación
-  const diasAdic = +resumen?.diasAdicionales || 0;
-  const descansos = +resumen?.descansos || 0;
-  const domMonto = +resumen?.domMonto || 0;
-  const faltas = +resumen?.faltas || 0;
-  const faltasMonto = +resumen?.faltasMonto || 0;
-  const faltasAuto = +resumen?.faltasAuto || 0;
-  const tardanzaAuto = +resumen?.tardanzaAuto || 0;
-  const tardanzaManual = resumen?.tardanzaManual;
-  const faltasManual = resumen?.faltasManual;
-  const onpRate = resumen?.onpRate || 0;
-  const onpMonto = resumen?.onpMonto || 0;
-  const periodoDesde = periodo?.desde || desde;
-  const periodoHasta = periodo?.hasta || hasta;
+  const { emp, ajuste, registros, descansosFechas, valorDia, valorHora, descTardanza, periodo, resumen } = data;
+
+  // ── Extraer datos ──
+  const diasTrab   = +resumen?.diasTrabajados || 0;
+  const horasTrab  = +resumen?.horasTrabajadas || 0;
+  const diasAdic   = +resumen?.diasAdicionales || 0;
+  const descansos  = +resumen?.descansos || 0;
+  const faltas     = +resumen?.faltas || 0;
+  const faltasMonto= +resumen?.faltasMonto || 0;
+  const tardCount  = +resumen?.tardanzaCount || 0;
+  const tardMonto  = +resumen?.tardanzaMonto || 0;
+  const domMonto   = +resumen?.domMonto || 0;
+  const onpMonto   = +resumen?.onpMonto || 0;
   const feriados   = +ajuste?.feriados  || 0;
   const prestamo   = +ajuste?.prestamo  || 0;
   const bono       = +ajuste?.bono      || 0;
   const nota       = ajuste?.nota       || '';
 
-  const diasTrab   = +resumen?.diasTrabajados || 0;
-  const horasTrab  = +resumen?.horasTrabajadas || 0;
-  const tardCount  = +resumen?.tardanzaCount || registros.filter(r => r.tarde).length;
-  const tardMonto  = +resumen?.tardanzaMonto || +(tardCount * descTardanza).toFixed(2);
-  // descansos y faltas: aproximar desde el backend (usamos los registros como referencia)
-
-  // Meses en español
-  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-  const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const periodoDesde = periodo?.desde || desde;
+  const periodoHasta = periodo?.hasta || hasta;
   const fDesde = new Date(periodoDesde + 'T12:00:00');
   const fHasta = new Date(periodoHasta + 'T12:00:00');
+  const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+  const DIAS  = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
   const mesNombre = MESES[fDesde.getMonth()];
   const anio      = fDesde.getFullYear();
   const qNum      = fDesde.getDate() <= 15 ? '1ª' : '2ª';
   const hoy = new Date();
   const fechaImpresion = `${hoy.getDate()} de ${MESES[hoy.getMonth()]} de ${hoy.getFullYear()}`;
-
   const fmt = n => 'S/. ' + (+n || 0).toFixed(2);
 
-  // Calendario 2 columnas (mitad izquierda / mitad derecha) para reducir altura
-  const mkCel = r => {
-    if (!r) return `<td colspan="4"></td>`;
-    const fd = new Date(r.fecha + 'T12:00:00');
-    const ec = !r.hora_entrada ? ['F','#c53030'] : r.tarde ? ['T','#b7791f'] : ['✓','#276749'];
-    return `<td class="cc">${fd.getDate()} ${DIAS[fd.getDay()]}</td>` +
-           `<td class="cc cn">${r.hora_entrada||'—'}</td>` +
-           `<td class="cc cn">${r.hora_salida||'—'}</td>` +
-           `<td class="cc cn" style="color:${ec[1]};font-weight:700;border-right:1px solid #bbb">${ec[0]}</td>`;
-  };
-  const mid = Math.ceil(registros.length / 2);
-  const col1 = registros.slice(0, mid);
-  const col2 = registros.slice(mid);
+  // ── Calendario grid (mismo estilo que el modal) ──
+  const fechasDescanso = new Set((descansosFechas || []).filter(f => typeof f === 'string'));
+  const registrosPorFecha = new Map(registros.map(r => [r.fecha, r]));
+  const qDesde = new Date(desde + 'T12:00:00');
+  const qHasta = new Date(hasta + 'T12:00:00');
+  const desdeDia = qDesde.getDate();
+  const hastaDia = qHasta.getDate();
+  const anioCal = qDesde.getFullYear();
+  const mesCal = qDesde.getMonth();
+
+  // Auto-descanso: misma regla que en el modal
+  const autoDescansosPrint = new Set();
+  const semPrint = {};
+  for (let d = desdeDia; d <= hastaDia; d++) {
+    const fecha = `${anioCal}-${String(mesCal + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const fd = new Date(fecha + 'T12:00:00');
+    const ws = new Date(fd);
+    ws.setDate(fd.getDate() - ((fd.getDay() + 6) % 7));
+    const key = ws.toISOString().slice(0, 10);
+    if (!semPrint[key]) semPrint[key] = { fechas: [], conTrabajo: false };
+    semPrint[key].fechas.push(fecha);
+    if (registrosPorFecha.has(fecha)) semPrint[key].conTrabajo = true;
+  }
+  for (const sem of Object.values(semPrint)) {
+    if (!sem.conTrabajo) continue;
+    let primerDesc = false;
+    for (const fecha of sem.fechas) {
+      if (registrosPorFecha.has(fecha) || fechasDescanso.has(fecha)) continue;
+      if (!primerDesc) { autoDescansosPrint.add(fecha); primerDesc = true; }
+    }
+  }
+
   let calFilas = '';
-  for (let i = 0; i < col1.length; i++) {
-    calFilas += `<tr>${mkCel(col1[i])}${i < col2.length ? mkCel(col2[i]) : '<td colspan="4"></td>'}</tr>`;
+  let filaCal = '';
+  let col = 0;
+  for (let d = desdeDia; d <= hastaDia; d++) {
+    const fecha = `${anioCal}-${String(mesCal + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const reg = registrosPorFecha.get(fecha);
+    const esDesc = fechasDescanso.has(fecha);
+    const esAutoDescPrint = !esDesc && autoDescansosPrint.has(fecha);
+    const esFut = fecha > hoy.toISOString().slice(0, 10);
+
+    let txt = `<div class="pn">${d}</div>`;
+    let cls = 'pd';
+    if (esDesc || esAutoDescPrint) { txt += '<div class="ps pd-d">Descanso</div>'; cls += ' pd-r'; }
+    else if (reg) {
+      const et = reg.hora_entrada || '—';
+      const st = reg.hora_salida || '—';
+      const tr = reg.tarde;
+      const hrs = parseFloat(reg.jornada?.horas || 0);
+      txt += `<div class="ph ${tr ? 'ph-t' : ''}">${et}</div><div class="ph">${st}</div>`;
+      if (tr) txt += '<div class="ps ps-t">Tardanza</div>';
+      else txt += '<div class="ps ps-o">✓</div>';
+      if (hrs > 0 && hrs < 8) txt += `<div class="ps ps-p">${hrs}h</div>`;
+    } else if (!esFut) { txt += '<div class="ps ps-f">Falta</div>'; cls += ' pd-f'; }
+
+    filaCal += `<td class="${cls}">${txt}</td>`;
+    col++;
+    if (col === 7) { calFilas += `<tr>${filaCal}</tr>`; filaCal = ''; col = 0; }
   }
+  if (col > 0) calFilas += `<tr>${filaCal}</tr>`;
 
-  // Obtener bono y préstamo desde los inputs/celdas actuales
-  const bonoInput    = parseFloat(document.getElementById(`sueldoBono_${empId}`)?.value || '0') || bono;
-  const prestamoInput= parseFloat(document.getElementById(`sueldoPrestamo_${empId}`)?.value || '0') || prestamo;
+  const sueldoNeto = +resumen?.sueldo || 0;
 
-  const fila = document.querySelector(`#tablaSueldos tr[data-empid="${empId}"]`);
-  // Usar sueldoFinal y onpMonto del resumen por defecto
-  let onpVal = onpMonto;
-  let sueldoFinalFinal = +resumen?.sueldo || 0;
-  if (fila) {
-    onpVal = parseFloat(fila.dataset.onp || onpMonto);
-    // Prioriza el neto visible en tabla para reflejar ajustes manuales del usuario
-    const sueldoTxt = document.getElementById(`sueldoTotal_${empId}`)?.textContent || '';
-    const sueldoLimpio = String(sueldoTxt)
-      .replace(/^\s*S\/\.\s*/i, '')
-      .replace(/,/g, '')
-      .trim();
-    const sueldoNum = parseFloat(sueldoLimpio);
-    if (Number.isFinite(sueldoNum)) sueldoFinalFinal = +sueldoNum.toFixed(2);
-  }
-
-  const htmlA4 = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+  const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <title>Boleta ${emp.nombre} ${emp.apellido}</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{font-family:Arial,sans-serif;font-size:13px;color:#111;background:#fff}
-  @page{size:A4;margin:10mm 17.28mm}
-  @media print{.no-print{display:none!important} .wrap{padding:0}}
-  .wrap{width:100%;padding:6px 8px}
-  .hdr{display:flex;align-items:center;justify-content:space-between;border-bottom:2.5px solid #111;padding-bottom:5px;margin-bottom:5px}
-  .hdr-left h1{font-size:1.35em;font-weight:900;text-transform:uppercase;letter-spacing:.04em}
-  .hdr-left p{font-size:.88em;color:#555;margin-top:1px}
-  .hdr-right{text-align:right;font-size:.88em;color:#555;line-height:1.6}
-  .badge{background:#111;color:#fff;padding:3px 0;font-size:.95em;font-weight:700;letter-spacing:.07em;text-align:center;margin-bottom:6px}
-  .ig{display:grid;grid-template-columns:repeat(4,1fr);gap:3px 12px;margin-bottom:7px;font-size:.92em;border:1px solid #ddd;padding:5px 8px;border-radius:3px}
-  .ig .lbl{font-size:.8em;color:#777;display:block}
-  .ig .val{font-weight:700}
-  .sh{font-size:.82em;text-transform:uppercase;letter-spacing:.05em;color:#555;font-weight:700;border-bottom:1px solid #ccc;padding-bottom:2px;margin-bottom:4px}
-  table.cal{width:100%;border-collapse:collapse;font-size:.9em;margin-bottom:7px}
-  table.cal th{background:#efefef;padding:3px 5px;text-align:center;font-size:.83em;border:1px solid #ddd}
-  table.cal td.cc{padding:3px 6px}
-  table.cal td.cn{text-align:center}
-  table.cal td.div{border-right:2px solid #bbb;padding-right:8px}
-  table.cal tr:nth-child(even){background:#fafafa}
-  .liq-wrap{display:block;margin-bottom:7px}
-  table.liq{width:100%;border-collapse:collapse;font-size:.97em;margin-bottom:2px}
-  table.liq td{padding:3px 5px}
-  table.liq td:last-child{text-align:right;white-space:nowrap}
-  table.liq tr.inc td{color:#1d4ed8;font-weight:700}
-  table.liq tr.dec td{color:#b91c1c;font-weight:700}
-  table.liq tr.sep td{border-top:1px solid #ccc;padding-top:4px}
-  table.liq tr.total td{border-top:2px solid #111;font-weight:800;font-size:1.08em;padding-top:4px}
-  table.liq tr.total td:last-child{color:#1d4ed8}
-  .nota-box{background:#fffbe6;border:1px solid #e9c83e;border-radius:3px;padding:4px 8px;font-size:.88em;color:#555;margin-bottom:7px}
-  .firma-wrap{display:flex;justify-content:space-between;align-items:flex-end;margin-top:60px;padding-top:18px;border-top:1px solid #ddd;gap:60px}
-  .firma-box{text-align:center}
-  .firma-linea{border-top:1.5px solid #333;margin-top:36px;padding-top:5px;font-size:.88em;color:#333;font-weight:700}
-  .firma-campo{margin-top:6px;font-size:.95em;color:#333;font-weight:700}
-  .huella-rect{width:80px;height:100px;border:1.5px solid #333;border-radius:4px;margin:8px auto 0;background:#f9f9f9}
-  .pie{text-align:center;margin-top:8px;font-size:.78em;color:#aaa}
-  .btn-imp{display:inline-block;margin:0 5px 10px 0;padding:6px 16px;background:#111;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:.92em}
-  .btn-80{background:#555}
+  html,body{font-family:'Segoe UI',system-ui,Arial,sans-serif;font-size:12px;color:#1a1a2e;background:#fff}
+  @page{size:A4;margin:14mm 16mm}
+  @media print{.no-print{display:none!important}.wrap{padding:0;max-width:100%}}
+  .wrap{max-width:780px;margin:0 auto;padding:5px 10px}
+
+  /* Header */
+  .hdr{display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid #1a1a2e;padding-bottom:10px;margin-bottom:12px}
+  .hdr-l{display:flex;align-items:center;gap:10px}
+  .hdr-l img{width:46px;height:46px;border-radius:6px;object-fit:contain;flex-shrink:0}
+  .hdr-l h1{font-size:1.35em;font-weight:800;letter-spacing:.03em;text-transform:uppercase;color:#1a1a2e;line-height:1.15}
+  .hdr-l p{font-size:.78em;color:#666;margin-top:1px}
+  .hdr-r{text-align:right;font-size:.8em;color:#666;line-height:1.6}
+
+  /* Barra */
+  .bar{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:7px 14px;font-size:.85em;font-weight:700;letter-spacing:.05em;text-align:center;border-radius:6px;margin-bottom:12px}
+
+  /* Info grid */
+  .ig{display:grid;grid-template-columns:repeat(4,1fr);gap:2px 14px;margin-bottom:12px;background:#f8f9fc;border:1px solid #e2e6f0;border-radius:8px;padding:10px 14px}
+  .ig .lbl{font-size:.7em;color:#888;text-transform:uppercase;letter-spacing:.04em;display:block}
+  .ig .val{font-weight:700;font-size:.95em;color:#1a1a2e}
+
+  /* Secciones */
+  .sh{font-size:.78em;text-transform:uppercase;letter-spacing:.06em;color:#555;font-weight:700;border-bottom:2px solid #1a1a2e;padding-bottom:4px;margin-bottom:7px;margin-top:10px}
+  .sh:first-of-type{margin-top:0}
+
+  /* Calendario grid */
+  table.cal{width:100%;border-collapse:collapse;margin-bottom:8px}
+  table.cal th{padding:4px 3px;text-align:center;font-size:.7em;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #1a1a2e;background:#f8f9fc}
+  table.cal td.pd{vertical-align:top;padding:4px 3px;border:1px solid #e2e6f0;height:48px;width:14.28%;text-align:center}
+  table.cal td.pd-r{background:#f0fdf4}
+  table.cal td.pd-f{background:#fef2f2}
+  table.cal .pn{font-weight:700;font-size:.78em;color:#1a1a2e;margin-bottom:1px}
+  table.cal .ph{font-size:.65em;color:#555;line-height:1.25}
+  table.cal .ph-t{color:#dc2626;font-weight:700}
+  table.cal .ps{font-size:.6em;font-weight:700;margin-top:1px}
+  table.cal .ps-o{color:#16a34a}
+  table.cal .ps-t{color:#d97706}
+  table.cal .ps-f{color:#dc2626}
+  table.cal .ps-p{color:#2563eb}
+  table.cal .ps-d{color:#15803d}
+
+  /* Liquidación */
+  table.liq{width:100%;border-collapse:collapse;font-size:.92em;margin-bottom:3px}
+  table.liq td{padding:3px 6px}
+  table.liq td:last-child{text-align:right;white-space:nowrap;font-weight:600}
+  table.liq tr.i td{color:#1d4ed8}
+  table.liq tr.d td{color:#b91c1c}
+  table.liq tr.s td{border-top:1px solid #ccc;padding-top:5px}
+  table.liq tr.t td{border-top:3px double #1a1a2e;font-weight:800;font-size:1.05em;padding-top:5px}
+  table.liq tr.t td:last-child{color:#1d4ed8;font-size:1.1em}
+
+  /* Nota */
+  .nota-box{background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:6px 12px;font-size:.82em;color:#92400e;margin-bottom:10px}
+
+  /* Firmas */
+  .firmas{display:flex;justify-content:space-between;margin-top:40px;padding-top:14px;border-top:1px solid #e2e6f0;gap:40px}
+  .firma{text-align:center;flex:1}
+  .firma .ln{border-top:2px solid #1a1a2e;margin-top:32px;padding-top:5px;font-size:.85em;font-weight:700;color:#1a1a2e}
+  .firma .lb{font-size:.72em;color:#888;margin-top:3px}
+  .huella{width:70px;height:90px;border:2px solid #1a1a2e;border-radius:6px;margin:6px auto 0;background:#f8f9fc}
+
+  /* Pie */
+  .pie{text-align:center;margin-top:10px;font-size:.7em;color:#aaa;border-top:1px solid #e2e6f0;padding-top:8px}
 </style></head><body>
 <div class="wrap">
-  <div class="no-print" style="margin-bottom:10px">
-    <button class="btn-imp" onclick="window.print()">🖨️ Imprimir A4</button>
-    <button class="btn-imp btn-80" onclick="imprimirTicket()">🖨️ Imprimir 80mm</button>
-    <button class="btn-imp" style="background:#888" onclick="window.close()">✕ Cerrar</button>
+  <!-- Botones (solo en pantalla) -->
+  <div class="no-print" style="margin-bottom:12px;display:flex;gap:8px">
+    <button onclick="window.print()" style="padding:7px 18px;background:#1a1a2e;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:.9em">🖨️ Imprimir</button>
+    <button onclick="window.close()" style="padding:7px 18px;background:#888;color:#fff;border:none;border-radius:5px;cursor:pointer;font-size:.9em">✕ Cerrar</button>
   </div>
 
+  <!-- Header -->
   <div class="hdr">
-    <div class="hdr-left">
-      <h1>🐷 Belu Chicharronería</h1>
-      <p>Boleta de Liquidación de Sueldo</p>
+    <div class="hdr-l">
+      <img src="/img/log_belu.png" alt="Belu" onerror="this.style.display='none'">
+      <div>
+        <h1>Belu Chicharronería</h1>
+        <p>Boleta de Liquidación de Sueldo</p>
+      </div>
     </div>
-    <div class="hdr-right">
-      Emitido: ${fechaImpresion}<br>
-      ${emp.tipo_doc}: <strong>${emp.documento}</strong>
+    <div class="hdr-r">
+      <strong>${fechaImpresion}</strong><br>
+      ${emp.tipo_doc}: ${emp.documento}
     </div>
   </div>
 
-  <div class="badge">BOLETA DE PAGO — ${qNum} QUINCENA DE ${mesNombre.toUpperCase()} ${anio}</div>
+  <div class="bar">BOLETA DE PAGO — ${qNum} QUINCENA DE ${mesNombre.toUpperCase()} ${anio}</div>
 
+  <!-- Info empleado -->
   <div class="ig">
     <div><span class="lbl">Trabajador</span><span class="val">${emp.nombre} ${emp.apellido}</span></div>
     <div><span class="lbl">Cargo</span><span class="val">${emp.cargo || '—'}</span></div>
     <div><span class="lbl">Período</span><span class="val">${periodoDesde} → ${periodoHasta}</span></div>
-    <div><span class="lbl">Régimen ONP</span><span class="val">${emp.onp ? 'Sí (13%)' : 'No'}</span></div>
+    <div><span class="lbl">Régimen ONP</span><span class="val">${resumen?.onpActivo !== undefined ? (resumen.onpActivo ? 'Sí (13%)' : 'No') : (emp.onp ? 'Sí (13%)' : 'No')}</span></div>
   </div>
 
+  <!-- Calendario de asistencia -->
   <div class="sh">📅 Registro de Asistencia</div>
   <table class="cal">
-    <thead><tr>
-      <th>Día</th><th>Entrada</th><th>Salida</th><th class="div">Est.</th>
-      <th>Día</th><th>Entrada</th><th>Salida</th><th>Est.</th>
-    </tr></thead>
+    <thead><tr><th>Lun</th><th>Mar</th><th>Mié</th><th>Jue</th><th>Vie</th><th>Sáb</th><th>Dom</th></tr></thead>
     <tbody>${calFilas}</tbody>
   </table>
 
-  <div class="sh">💵 Liquidación</div>
-  <div class="liq-wrap">
-    <table class="liq">
-      <tr class="inc"><td>Días trabajados (${diasTrab} x ${(+valorDia || 0).toFixed(2)})</td><td>${fmt(diasTrab * valorDia)}</td></tr>
-      <tr class="inc"><td>Días adicionales (${diasAdic} x ${(+valorDia || 0).toFixed(2)})</td><td>${fmt(diasAdic * valorDia)}</td></tr>
-      <tr class="inc"><td>Descansos (${descansos} x ${(+valorDia || 0).toFixed(2)})</td><td>${fmt(descansos * valorDia)}</td></tr>
-      <tr class="inc"><td>Dominical proporcional</td><td>${fmt(domMonto)}</td></tr>
-      <tr class="inc"><td>Horas parciales (${horasTrab} x ${(+valorHora || 0).toFixed(2)})</td><td>${fmt(horasTrab * valorHora)}</td></tr>
-      <tr class="inc"><td>Feriados (${feriados} x ${(+valorDia || 0).toFixed(2)})</td><td>${fmt(feriados * valorDia)}</td></tr>
-      <tr class="dec"><td>Faltas (${faltas}; ${faltasManual !== null && faltasManual !== undefined ? 'Manual' : 'Auto: ' + faltasAuto})</td><td>${faltasMonto > 0 ? '-' : ''}${fmt(faltasMonto)}</td></tr>
-      <tr class="dec"><td>Tardanzas (${tardCount}; ${tardanzaManual !== null && tardanzaManual !== undefined ? 'Manual' : 'Auto: ' + tardanzaAuto})</td><td>${tardMonto > 0 ? '-' : ''}${fmt(tardMonto)}</td></tr>
-      <tr class="inc"><td>Bono</td><td>${fmt(bonoInput)}</td></tr>
-      <tr class="dec"><td>Préstamo</td><td>${prestamoInput > 0 ? '-' : ''}${fmt(prestamoInput)}</td></tr>
-      <tr class="dec"><td>ONP</td><td>${onpVal > 0 ? '-' : ''}${fmt(onpVal)}</td></tr>
-      <tr class="total"><td>SUELDO NETO</td><td>${fmt(sueldoFinalFinal)}</td></tr>
-    </table>
-  </div>
+  <!-- Liquidación -->
+  <div class="sh">💵 Liquidación de Sueldo</div>
+  <table class="liq">
+    <tr class="i"><td>Días trabajados (${diasTrab} × ${valorDia.toFixed(2)})</td><td>${fmt(diasTrab * valorDia)}</td></tr>
+    ${diasAdic > 0 ? `<tr class="i"><td>Días adicionales (${diasAdic} × ${valorDia.toFixed(2)})</td><td>${fmt(diasAdic * valorDia)}</td></tr>` : ''}
+    ${descansos > 0 ? `<tr class="i"><td>Descansos (${descansos} × ${valorDia.toFixed(2)})</td><td>${fmt(descansos * valorDia)}</td></tr>` : ''}
+    ${domMonto > 0 ? `<tr class="i"><td>Día proporcional</td><td>${fmt(domMonto)}</td></tr>` : ''}
+    ${horasTrab > 0 ? `<tr class="i"><td>Horas parciales (${horasTrab} × ${valorHora.toFixed(2)})</td><td>${fmt(horasTrab * valorHora)}</td></tr>` : ''}
+    ${feriados > 0 ? `<tr class="i"><td>Feriados (${feriados} × ${valorDia.toFixed(2)})</td><td>${fmt(feriados * valorDia)}</td></tr>` : ''}
+    <tr class="d"><td>Faltas (${faltas})</td><td>${faltasMonto > 0 ? '-' : ''}${fmt(faltasMonto)}</td></tr>
+    <tr class="d"><td>Tardanzas (${tardCount})</td><td>${tardMonto > 0 ? '-' : ''}${fmt(tardMonto)}</td></tr>
+    ${bono > 0 ? `<tr class="i"><td>Bono</td><td>${fmt(bono)}</td></tr>` : ''}
+    ${prestamo > 0 ? `<tr class="d"><td>Préstamo</td><td>${prestamo > 0 ? '-' : ''}${fmt(prestamo)}</td></tr>` : ''}
+    ${onpMonto > 0 ? `<tr class="d"><td>ONP 13%</td><td>${onpMonto > 0 ? '-' : ''}${fmt(onpMonto)}</td></tr>` : ''}
+    <tr class="s"><td></td><td></td></tr>
+    <tr class="t"><td>SUELDO NETO</td><td>${fmt(sueldoNeto)}</td></tr>
+  </table>
 
   ${nota ? `<div class="nota-box"><strong>Nota:</strong> ${nota}</div>` : ''}
 
-  <div style="height:60px"></div>
-  <div class="firma-wrap">
-    <div class="firma-box">
-      <div class="firma-linea"></div>
-      <div class="firma-campo">${emp.nombre} ${emp.apellido}</div>
-      <div class="firma-campo">Firma del Trabajador</div>
+  <!-- Firmas -->
+  <div class="firmas">
+    <div class="firma">
+      <div class="ln">${emp.nombre} ${emp.apellido}</div>
+      <div class="lb">Firma del Trabajador</div>
     </div>
-    <div class="firma-box">
-      <div style="font-size:.88em;color:#333;font-weight:700;margin-bottom:4px">Huella Digital</div>
-      <div class="huella-rect"></div>
+    <div class="firma">
+      <div class="huella"></div>
+      <div class="lb">Huella Digital</div>
     </div>
   </div>
-  <div class="pie">Belu Chicharronería — Documento generado el ${fechaImpresion}</div>
+
+  <div class="pie">🐷 Belu Chicharronería — Documento generado el ${fechaImpresion}</div>
 </div>
-<div id="ticket80" style="display:none"></div>
-<script>
-function imprimirTicket() {
-  const t = document.getElementById('ticket80');
-  t.innerHTML = ${JSON.stringify(`
-  <style>
-    @page { size: 80mm auto; margin: 2mm 3mm; }
-    body { font-family: 'Courier New', monospace; font-size: 11px; width:72mm; }
-    .t-center { text-align:center; } .t-right { text-align:right; }
-    .sep { border-top:1px dashed #999; margin:4px 0; }
-    .bold { font-weight:bold; } .big { font-size:1.1em; }
-    table { width:100%; border-collapse:collapse; font-size:10px; }
-    td, th { padding:1px 2px; }
-  </style>
-  <div class="t-center bold" style="font-size:1.2em">BELU CHICHARRONERIA</div>
-  <div class="t-center" style="font-size:.85em">BOLETA DE PAGO</div>
-  <div class="t-center" style="font-size:.85em">${qNum} Quincena ${mesNombre} ${anio}</div>
-  <div class="sep"></div>
-  <div><b>${emp.nombre} ${emp.apellido}</b></div>
-  <div style="font-size:.85em">${emp.cargo || ''}</div>
-  <div style="font-size:.85em">${emp.tipo_doc}: ${emp.documento}</div>
-  <div class="sep"></div>
-  <table>
-    <tr><th>Fecha</th><th>Ent.</th><th>Sal.</th><th>Est.</th></tr>
-    ${registros.map(r2 => `<tr><td>${r2.fecha.slice(5)}</td><td>${r2.hora_entrada||'—'}</td><td>${r2.hora_salida||'—'}</td><td>${!r2.hora_entrada?'F':r2.tarde?'T':'OK'}</td></tr>`).join('')}
-  </table>
-  <div class="sep"></div>
-  <table>
-    <tr><td>Días trab. (${diasTrab})</td><td class="t-right">${fmt(diasTrab * valorDia)}</td></tr>
-    ${horasTrab > 0 ? `<tr><td>Horas parc. (${horasTrab})</td><td class="t-right">${fmt(horasTrab * valorHora)}</td></tr>` : ''}
-    ${feriados > 0 ? `<tr><td>Feriados (${feriados})</td><td class="t-right">+${fmt(feriados * valorDia)}</td></tr>` : ''}
-    <tr><td>Tardanzas (${tardCount})</td><td class="t-right">-${fmt(tardMonto)}</td></tr>
-    ${onpVal > 0 ? `<tr><td>ONP 13%</td><td class="t-right">-${fmt(onpVal)}</td></tr>` : ''}
-    ${prestamoInput > 0 ? `<tr><td>Préstamo</td><td class="t-right">-${fmt(prestamoInput)}</td></tr>` : ''}
-    ${bonoInput > 0 ? `<tr><td>Bono</td><td class="t-right">+${fmt(bonoInput)}</td></tr>` : ''}
-  </table>
-  <div class="sep"></div>
-  <div class="bold big t-center">NETO: ${fmt(sueldoFinalFinal)}</div>
-  <div class="sep"></div>
-  ${nota ? `<div style="font-size:.85em">Nota: ${nota}</div><div class="sep"></div>` : ''}
-  <div style="margin-top:28px">Firma: ____________________</div>
-  <div style="margin-top:18px">DNI:   ____________________</div>
-  <div style="margin-top:14px;font-size:.8em;text-align:center">${fechaImpresion}</div>
-  `)};
-  const w = window.open('', '_blank', 'width=330,height=700');
-  w.document.write('<html><body>' + t.innerHTML + '</body></html>');
-  w.document.close();
-  w.focus();
-  setTimeout(() => { w.print(); }, 400);
-}
-<\/script>
 </body></html>`;
 
-  const win = window.open('', '_blank', 'width=800,height=900');
-  win.document.write(htmlA4);
+  const win = window.open('', '_blank', 'width=900,height=900');
+  if (!win) { alert('El navegador bloqueó la ventana emergente. Permití popups para este sitio.'); return; }
+  win.document.write(html);
   win.document.close();
   win.focus();
 }
@@ -1756,6 +2060,113 @@ async function asistAjuste(empId, nombre, desde, hasta, feriados, prestamo, bono
       feriados: +nuevoFer||0, prestamo: +nuevoPres||0, bono: +nuevoBono||0 }) });
   const data = await res.json();
   if (data.ok) asistCargarSueldos(); else alert(data.error);
+}
+
+// ── Modal de descansos ───────────────────────────────────────────
+
+function asistGenerarDiasPeriodo(desde, hasta) {
+  const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  const d0 = new Date(`${desde}T12:00:00`);
+  const df = new Date(`${hasta}T12:00:00`);
+  const dias = [];
+  for (let d = new Date(d0); d <= df; d.setDate(d.getDate() + 1)) {
+    const f = d.toISOString().slice(0, 10);
+    dias.push({ fecha: f, dia: d.getDate(), diaSem: DIAS[d.getDay()] });
+  }
+  return dias;
+}
+
+function asistCerrarModalDescansos() {
+  document.getElementById('modalDescansos').classList.add('hide');
+  window._descansosState = null;
+}
+
+async function asistAbrirModalDescansos() {
+  const data = window._sueldosData;
+  if (!data?.periodo?.desde || !data?.periodo?.hasta || !data?.resultados?.length) {
+    alert('Primero cargá la liquidación del período.');
+    return;
+  }
+  const p = data.periodo;
+  const empleados = data.resultados.map(r => r.emp).sort((a, b) => (a.nombre_completo || '').localeCompare(b.nombre_completo || ''));
+  const dias = asistGenerarDiasPeriodo(p.desde, p.hasta);
+  document.getElementById('modalDescansos').classList.remove('hide');
+  document.getElementById('descansosModalBody').innerHTML = '<p class="text-center text-muted" style="padding:30px">Cargando descansos...</p>';
+  try {
+    const saved = await fetch(`${AAPI}/sueldos/descansos?periodo_desde=${p.desde}&periodo_hasta=${p.hasta}&_=${Date.now()}`).then(r => r.json());
+    const guardados = (saved.ok && saved.descansos) ? saved.descansos : {};
+    window._descansosState = {};
+    for (const emp of empleados) {
+      window._descansosState[emp.id] = new Set(guardados[emp.id] || []);
+    }
+    asistRenderizarModalDescansos(dias, empleados);
+  } catch (e) {
+    document.getElementById('descansosModalBody').innerHTML = `<p class="text-center text-danger" style="padding:30px">Error: ${e.message}</p>`;
+  }
+}
+
+function asistRenderizarModalDescansos(dias, empleados) {
+  const body = document.getElementById('descansosModalBody');
+  const html = `
+    <div style="overflow-x:auto">
+      <table class="data-table" style="font-size:.85em;white-space:nowrap">
+        <thead>
+          <tr>
+            <th style="position:sticky;left:0;background:var(--bg-card);z-index:2;min-width:160px">Embajador</th>
+            ${dias.map(d => `<th style="text-align:center;min-width:38px">${d.dia}<br><small style="font-weight:400">${d.diaSem}</small></th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${empleados.map(e => `<tr>
+            <td style="position:sticky;left:0;background:var(--bg-card);z-index:1;font-weight:600;white-space:nowrap">${e.nombre_completo}</td>
+            ${dias.map(d => {
+              const checked = window._descansosState[e.id]?.has(d.fecha) ? 'checked' : '';
+              return `<td style="text-align:center;padding:4px 2px"><input type="checkbox" id="descChk_${e.id}_${d.fecha}" ${checked} onchange="asistMarcarDescanso(${e.id}, '${d.fecha}', this.checked)" style="width:18px;height:18px;cursor:pointer"></td>`;
+            }).join('')}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  body.innerHTML = html;
+}
+
+function asistMarcarDescanso(empId, fecha, checked) {
+  if (!window._descansosState) return;
+  if (!window._descansosState[empId]) window._descansosState[empId] = new Set();
+  if (checked) window._descansosState[empId].add(fecha);
+  else window._descansosState[empId].delete(fecha);
+}
+
+async function asistGuardarDescansos() {
+  const data = window._sueldosData;
+  if (!data?.periodo) return;
+  const p = data.periodo;
+  const payload = {};
+  for (const [empId, set] of Object.entries(window._descansosState || {})) {
+    payload[empId] = [...set];
+  }
+  const btn = document.getElementById('btnGuardarDescansos');
+  const originalText = btn?.textContent || '💾 Guardar descansos';
+  if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+  try {
+    const res = await fetch(`${AAPI}/sueldos/descansos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ periodo_desde: p.desde, periodo_hasta: p.hasta, descansos: payload })
+    });
+    const d = await res.json();
+    if (d.ok) {
+      asistCerrarModalDescansos();
+      asistCargarSueldos();
+    } else {
+      alert(d.error || 'No se pudieron guardar los descansos.');
+    }
+  } catch (e) {
+    alert(e.message || 'Error de red');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+  }
 }
 
 // ════════════════ AUDITORÍA ════════════════

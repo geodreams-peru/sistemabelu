@@ -486,12 +486,52 @@
       <option value="1">1° Quincena (1–15)</option>
       <option value="2">2° Quincena (16–fin)</option>
     </select>
-    <button id="btnGuardarLoteSueldos" class="btn btn-primary btn-sm asist-admin-tab" onclick="asistGuardarAjustesLote()">💾 Guardar todo</button>
   </div>
 
   <div class="form-card" style="padding:0;overflow:hidden">
     <div class="table-responsive" id="tablaSueldos">
       <p class="text-center text-muted" style="padding:30px">Seleccioná el período y hacé clic en Calcular.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal calendario sueldos -->
+<div class="sueldo-cal-overlay hide" id="sueldoCalModal" onclick="if(event.target===this) asistCerrarModalCalendario()">
+  <div class="sueldo-cal-card">
+    <div class="sueldo-cal-header">
+      <div>
+        <h3 id="sueldoCalTitulo">📅 Calendario</h3>
+        <small id="sueldoCalSubtitulo"></small>
+      </div>
+      <button class="sueldo-cal-close" onclick="asistCerrarModalCalendario()" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="sueldo-cal-scroll" id="sueldoCalBody">
+      <p class="text-center text-muted" style="padding:30px">Cargando...</p>
+    </div>
+    <div class="sueldo-cal-editor" id="sueldoCalEditor">
+      <div class="sueldo-cal-editor-grid" id="sueldoCalEditorGrid"></div>
+      <div class="sueldo-cal-editor-actions">
+        <button class="btn btn-secondary btn-sm" onclick="asistCerrarModalCalendario()">Cancelar</button>
+        <button class="btn btn-primary btn-sm" id="sueldoCalGuardarBtn" onclick="asistGuardarAjusteModal()">💾 Guardar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal descansos -->
+<div class="modal-overlay hide" id="modalDescansos" onclick="if(event.target===this) asistCerrarModalDescansos()">
+  <div class="modal-card" style="max-width:920px;max-height:90vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <h3>🌴 Descansos del período</h3>
+      <button class="modal-close" onclick="asistCerrarModalDescansos()" aria-label="Cerrar">✕</button>
+    </div>
+    <p style="margin:0 0 12px;font-size:.88rem;color:var(--text-muted)">Marcá los días de descanso de cada embajador. Los días sin asistencia y sin marcar se considerarán faltas.</p>
+    <div style="flex:1;overflow:auto" id="descansosModalBody">
+      <p class="text-center text-muted" style="padding:30px">Cargando...</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="asistCerrarModalDescansos()">Cancelar</button>
+      <button class="btn btn-primary" id="btnGuardarDescansos" onclick="asistGuardarDescansos()">💾 Guardar descansos</button>
     </div>
   </div>
 </div>
