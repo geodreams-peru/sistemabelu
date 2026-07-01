@@ -5,9 +5,9 @@ const path = require('path');
 const fs = require('fs');
 const sqlite3 = require('sqlite3').verbose();
 const { dbPath, ensureRuntimeDirs, logPaths, UPLOADS_DIR, DATA_DIR } = require('./lib/paths');
-const { shouldMigrate } = require('./lib/db');
+const { shouldMigrate, getResolvedDbPaths } = require('./lib/db');
 
-const DEPLOY_VERSION = '2026-07-01-smart-db-resolver-v5';
+const DEPLOY_VERSION = '2026-07-01-smart-db-resolver-v6';
 
 function uniquePaths(list) {
   return [...new Set((list || []).filter(Boolean))];
@@ -92,6 +92,41 @@ function buildAsistenciaCandidateFiles(primaryDataDir) {
   }
 
   return uniquePaths(candidateDirs).map(dir => path.join(dir, 'asistencia.db'));
+}
+
+async function inspectDbCounts(filePath, countQueries) {
+  const info = {
+    path: filePath,
+    exists: fs.existsSync(filePath),
+    size: fs.existsSync(filePath) ? (fs.statSync(filePath).size || 0) : 0,
+    counts: {}
+  };
+
+  if (!info.exists || info.size <= 0) return info;
+
+  return new Promise((resolve) => {
+    const db = new sqlite3.Database(filePath, sqlite3.OPEN_READONLY, async (openErr) => {
+      if (openErr) {
+        info.error = openErr.message;
+        return resolve(info);
+      }
+
+      const q = (sql) => new Promise((res, rej) => db.get(sql, [], (err, row) => err ? rej(err) : res(row || {})));
+      try {
+        for (const [key, sql] of Object.entries(countQueries || {})) {
+          try {
+            const r = await q(sql);
+            info.counts[key] = r.n ?? 0;
+          } catch (e) {
+            info.counts[key] = null;
+            info.counts[`${key}_error`] = e.message;
+          }
+        }
+      } finally {
+        db.close(() => resolve(info));
+      }
+    });
+  });
 }
 
 function bootLog(location, message, data, hypothesisId = 'H503') {
@@ -282,6 +317,7 @@ app.get('/api/health', async (_req, res) => {
   let erroresSchema = null;
   let asistenciaDbInfo = null;
   let asistenciaCandidates = [];
+  let dbModuleInfo = {};
   try { dataFiles = fs.existsSync(dataDir) ? fs.readdirSync(dataDir) : null; } catch (e) { dataFiles = { error: e.message }; }
   try { publicFiles = fs.existsSync(PUBLIC_DIR) ? fs.readdirSync(PUBLIC_DIR) : null; } catch (e) { publicFiles = { error: e.message }; }
   try {
@@ -316,6 +352,60 @@ app.get('/api/health', async (_req, res) => {
     asistenciaCandidates = [{ error: e.message }];
   }
 
+  try {
+    const resolved = getResolvedDbPaths();
+    const targets = {
+      asistencia: resolved['asistencia.db'] || dbPath('asistencia.db'),
+      compras: resolved['compras.db'] || dbPath('compras.db'),
+      contabilidad: resolved['contabilidad.db'] || dbPath('contabilidad.db'),
+      errores: resolved['errores.db'] || dbPath('errores.db'),
+      evolucion: resolved['evolucion.db'] || dbPath('evolucion.db'),
+      movimientos: resolved['movimientos.db'] || dbPath('movimientos.db')
+    };
+
+    const [asis, comp, cont, erro, evol, mov] = await Promise.all([
+      inspectDbCounts(targets.asistencia, {
+        empleados: 'SELECT COUNT(*) AS n FROM empleados',
+        registros: 'SELECT COUNT(*) AS n FROM registros'
+      }),
+      inspectDbCounts(targets.compras, {
+        compras: 'SELECT COUNT(*) AS n FROM compras',
+        proveedores: 'SELECT COUNT(*) AS n FROM proveedores'
+      }),
+      inspectDbCounts(targets.contabilidad, {
+        ventas: 'SELECT COUNT(*) AS n FROM ventas',
+        gastos_items: 'SELECT COUNT(*) AS n FROM gastos_items',
+        gastos_mensuales: 'SELECT COUNT(*) AS n FROM gastos_mensuales'
+      }),
+      inspectDbCounts(targets.errores, {
+        errores: 'SELECT COUNT(*) AS n FROM errores',
+        error_vistos: 'SELECT COUNT(*) AS n FROM error_vistos'
+      }),
+      inspectDbCounts(targets.evolucion, {
+        evolucion_items: 'SELECT COUNT(*) AS n FROM evolucion_items',
+        evolucion_alarmas: 'SELECT COUNT(*) AS n FROM evolucion_alarmas'
+      }),
+      inspectDbCounts(targets.movimientos, {
+        producto: 'SELECT COUNT(*) AS n FROM producto',
+        compra: 'SELECT COUNT(*) AS n FROM compra',
+        venta: 'SELECT COUNT(*) AS n FROM venta',
+        movimiento: 'SELECT COUNT(*) AS n FROM movimiento'
+      })
+    ]);
+
+    dbModuleInfo = {
+      resolvedDbPaths: targets,
+      asistencia: asis,
+      compras: comp,
+      contabilidad: cont,
+      errores: erro,
+      evolucion: evol,
+      movimientos: mov
+    };
+  } catch (e) {
+    dbModuleInfo = { error: e.message };
+  }
+
   res.json({
     ok: fs.existsSync(INDEX_HTML),
     deployVersion: DEPLOY_VERSION,
@@ -336,6 +426,7 @@ app.get('/api/health', async (_req, res) => {
     dataFiles,
     asistenciaDbInfo,
     asistenciaCandidates,
+    dbModuleInfo,
     uploadsDirExists: fs.existsSync(uploadsDir),
     publicFiles,
     erroresSchema,
