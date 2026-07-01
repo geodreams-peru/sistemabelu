@@ -163,7 +163,8 @@ async function ensureSueldoAjustesColumns() {
     if (!names.has('faltas_override'))            await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN faltas_override INTEGER DEFAULT NULL`);
     if (!names.has('tardanzas_override'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN tardanzas_override INTEGER DEFAULT NULL`);
     if (!names.has('nota'))                       await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN nota TEXT DEFAULT ''`);
-    if (!names.has('dias_adicionales_override'))  await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_adicionales_override INTEGER DEFAULT NULL`);
+      if (!names.has('dias_adicionales_override'))  await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_adicionales_override INTEGER DEFAULT NULL`);
+      if (!names.has('dias_trabajados_override'))   await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_trabajados_override INTEGER DEFAULT NULL`);
     if (!names.has('dom_monto_override'))         await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN dom_monto_override FLOAT DEFAULT NULL`);
     if (!names.has('onp_override'))               await safeAddColumn(`ALTER TABLE sueldo_ajustes ADD COLUMN onp_override BOOLEAN DEFAULT NULL`);
   })().catch(err => { _sueldoAjustesSchemaReady = null; throw err; });
@@ -313,6 +314,7 @@ function initDB() {
       tardanzas_override INTEGER DEFAULT NULL,
       descansos_override INTEGER DEFAULT NULL,
       descansos_fechas TEXT DEFAULT NULL,
+      dias_trabajados_override INTEGER DEFAULT NULL,
       prestamo FLOAT DEFAULT 0.0,
       bono FLOAT DEFAULT 0.0,
       nota TEXT DEFAULT '',
@@ -327,6 +329,7 @@ function initDB() {
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN tardanzas_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN descansos_fechas TEXT DEFAULT NULL`, () => {});
+    db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_trabajados_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN dias_adicionales_override INTEGER DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN dom_monto_override FLOAT DEFAULT NULL`, () => {});
     db.run(`ALTER TABLE sueldo_ajustes ADD COLUMN onp_override BOOLEAN DEFAULT NULL`, () => {});
@@ -767,6 +770,10 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
   const prestamo = +ajuste?.prestamo || 0;
   const bono = +ajuste?.bono || 0;
   const nota = ajuste?.nota || '';
+  const diasTrabajadosOverride = ajuste?.dias_trabajados_override === null || ajuste?.dias_trabajados_override === undefined
+    ? null
+    : Math.max(0, +ajuste.dias_trabajados_override || 0);
+  const diasTrabajadosFinal = diasTrabajadosOverride ?? diasTrabajados;
   const faltasManual = ajuste?.faltas_override === null || ajuste?.faltas_override === undefined ? null : Math.max(0, +ajuste.faltas_override || 0);
   const tardanzasManual = ajuste?.tardanzas_override === null || ajuste?.tardanzas_override === undefined ? null : Math.max(0, +ajuste.tardanzas_override || 0);
   const descansosManual = ajuste?.descansos_override === null || ajuste?.descansos_override === undefined ? null : Math.max(0, +ajuste.descansos_override || 0);
@@ -786,15 +793,17 @@ function calcularResumenSueldo({ emp, regs, ajuste, periodo, cfg, regsContext = 
   const tardanzaMonto = toMoney(tardanzaCount * descTardanza);
   const faltasMonto = toMoney(faltas * 20);
   const montoHoras = toMoney(horasTrabajadas * valorHora);
-  const baseSinDescuentos = toMoney(((diasTrabajados + diasAdicionalesFinal + feriados + descansos) * valorDia) + montoHoras + domMontoFinal);
+  const baseSinDescuentos = toMoney(((diasTrabajadosFinal + diasAdicionalesFinal + feriados + descansos) * valorDia) + montoHoras + domMontoFinal);
   const subtotal = toMoney(baseSinDescuentos - faltasMonto - tardanzaMonto);
   const onpMonto = onpActivo ? toMoney(subtotal * 0.13) : 0;
   const sueldo = toMoney(subtotal - onpMonto - prestamo + bono);
 
   return {
-    diasTrabajados,
+    diasTrabajados: diasTrabajadosFinal,
+    diasTrabajadosAuto: diasTrabajados,
+    diasTrabajadosOverride,
     horasTrabajadas,
-    diasEquivalentes: toMoney(diasTrabajados + (horasTrabajadas / 8)),
+    diasEquivalentes: toMoney(diasTrabajadosFinal + (horasTrabajadas / 8)),
     diasAdicionales: diasAdicionalesFinal,
     diasAdicionalesAuto: diasAdicionales,
     diasAdicionalesOverride,
@@ -1283,6 +1292,8 @@ router.get('/sueldos', async (req, res) => {
       resultados.push({
         emp: { ...emp, nombre_completo: `${emp.nombre} ${emp.apellido}` },
         dias_trabajados: resumen.diasTrabajados,
+        dias_trabajados_auto: resumen.diasTrabajadosAuto,
+        dias_trabajados_override: resumen.diasTrabajadosOverride,
         horas_trabajadas: resumen.horasTrabajadas,
         dias_equivalentes: resumen.diasEquivalentes,
         diasAdicionales: resumen.diasAdicionales,
@@ -1316,7 +1327,8 @@ router.get('/sueldos', async (req, res) => {
         onp_override: resumen.onpOverride,
         sueldo: resumen.sueldo,
         nota: resumen.nota,
-        base_hora_parcial: resumen.baseHoraParcial
+        base_hora_parcial: resumen.baseHoraParcial,
+        valor_dia: resumen.valorDia
       });
     }
 
@@ -1351,7 +1363,7 @@ router.get('/sueldos/boleta', async (req, res) => {
 
 router.post('/sueldos/ajuste', authAdmin, async (req, res) => {
   try {
-    const { empleado_id, periodo_desde, periodo_hasta, feriados = 0, faltas_override = null, tardanzas_override = null, descansos_override = null, prestamo = 0, bono = 0, nota = '', dias_adicionales_override = null, dom_monto_override = null, onp_override = null } = req.body;
+    const { empleado_id, periodo_desde, periodo_hasta, feriados = 0, faltas_override = null, tardanzas_override = null, descansos_override = null, prestamo = 0, bono = 0, nota = '', dias_adicionales_override = null, dias_trabajados_override = null, dom_monto_override = null, onp_override = null } = req.body;
     if (!empleado_id || !periodo_desde || !periodo_hasta) return res.status(400).json({ error: 'Faltan campos.' });
     await ensureSueldoAjustesColumns();
 
@@ -1367,6 +1379,9 @@ router.post('/sueldos/ajuste', authAdmin, async (req, res) => {
     const diasAdicOverride = dias_adicionales_override === null || dias_adicionales_override === '' || dias_adicionales_override === undefined
       ? null
       : Math.max(0, parseInt(dias_adicionales_override, 10) || 0);
+    const diasTrabOverride = dias_trabajados_override === null || dias_trabajados_override === '' || dias_trabajados_override === undefined
+      ? null
+      : Math.max(0, parseInt(dias_trabajados_override, 10) || 0);
     const domMontoOverride = dom_monto_override === null || dom_monto_override === '' || dom_monto_override === undefined
       ? null
       : Math.max(0, parseFloat(dom_monto_override) || 0);
@@ -1377,11 +1392,11 @@ router.post('/sueldos/ajuste', authAdmin, async (req, res) => {
     const existe = await get('SELECT id FROM sueldo_ajustes WHERE empleado_id=? AND periodo_desde=? AND periodo_hasta=?',
       [+empleado_id, periodo_desde, periodo_hasta]);
     if (existe) {
-      await run('UPDATE sueldo_ajustes SET feriados=?,faltas_override=?,tardanzas_override=?,descansos_override=?,prestamo=?,bono=?,nota=?,dias_adicionales_override=?,dom_monto_override=?,onp_override=?,updated_at=? WHERE id=?',
-        [+feriados, faltasOverride, tardanzasOverride, descansosOverride, +prestamo, +bono, nota, diasAdicOverride, domMontoOverride, onpOverride, ahoraSQL(), existe.id]);
+      await run('UPDATE sueldo_ajustes SET feriados=?,faltas_override=?,tardanzas_override=?,descansos_override=?,prestamo=?,bono=?,nota=?,dias_adicionales_override=?,dias_trabajados_override=?,dom_monto_override=?,onp_override=?,updated_at=? WHERE id=?',
+        [+feriados, faltasOverride, tardanzasOverride, descansosOverride, +prestamo, +bono, nota, diasAdicOverride, diasTrabOverride, domMontoOverride, onpOverride, ahoraSQL(), existe.id]);
     } else {
-      await run('INSERT INTO sueldo_ajustes (empleado_id,periodo_desde,periodo_hasta,feriados,faltas_override,tardanzas_override,descansos_override,prestamo,bono,nota,dias_adicionales_override,dom_monto_override,onp_override,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-        [+empleado_id, periodo_desde, periodo_hasta, +feriados, faltasOverride, tardanzasOverride, descansosOverride, +prestamo, +bono, nota, diasAdicOverride, domMontoOverride, onpOverride, ahoraSQL()]);
+      await run('INSERT INTO sueldo_ajustes (empleado_id,periodo_desde,periodo_hasta,feriados,faltas_override,tardanzas_override,descansos_override,prestamo,bono,nota,dias_adicionales_override,dias_trabajados_override,dom_monto_override,onp_override,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [+empleado_id, periodo_desde, periodo_hasta, +feriados, faltasOverride, tardanzasOverride, descansosOverride, +prestamo, +bono, nota, diasAdicOverride, diasTrabOverride, domMontoOverride, onpOverride, ahoraSQL()]);
     }
     res.json({ ok: true });
   } catch (e) { res.status(500).json({ error: e.message }); }

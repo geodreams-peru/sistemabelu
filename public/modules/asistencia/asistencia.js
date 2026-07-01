@@ -1475,7 +1475,11 @@ async function asistMarcarDiaDescanso(marcarDescanso) {
 function asistRenderEditorModal(empData) {
   const editor = document.getElementById('sueldoCalEditorGrid');
   const {
-    feriados = 0, bono = 0, prestamo = 0,
+    dias_trabajados = 0, dias_trabajados_auto, dias_trabajados_override,
+    feriados = 0, faltas = 0, faltas_auto, faltas_manual,
+    descansos = 0, descansos_auto, descansos_manual,
+    valor_dia = 0, faltas_descuento_unitario = 20,
+    bono = 0, prestamo = 0,
     dom_monto = 0, diasAdicionales = 0,
     onp_activo = false, onp_override,
     diasAdicionalesOverride, dom_monto_override
@@ -1484,11 +1488,38 @@ function asistRenderEditorModal(empData) {
   const onpChecked = onp_override !== null && onp_override !== undefined ? !!onp_override : onp_activo;
   const domVal = dom_monto_override !== null && dom_monto_override !== undefined ? dom_monto_override : dom_monto;
   const adicVal = diasAdicionalesOverride !== null && diasAdicionalesOverride !== undefined ? diasAdicionalesOverride : diasAdicionales;
+  const diasTrabVal = dias_trabajados_override !== null && dias_trabajados_override !== undefined
+    ? dias_trabajados_override
+    : (dias_trabajados_auto ?? dias_trabajados ?? 0);
+  const faltasVal = faltas_manual !== null && faltas_manual !== undefined
+    ? faltas_manual
+    : (faltas_auto ?? faltas ?? 0);
+  const descansosVal = descansos_manual !== null && descansos_manual !== undefined
+    ? descansos_manual
+    : (descansos_auto ?? descansos ?? 0);
+  const valorDia = +valor_dia || 0;
+  const faltaUnit = +faltas_descuento_unitario || 20;
 
   editor.innerHTML = `
     <div class="sueldo-cal-editor-item">
+      <label>Días trabajados</label>
+      <input type="number" id="sueldoModalDiasTrab" min="0" step="1" value="${diasTrabVal}">
+      <small id="sueldoModalDiasTrabMonto">Monto: ${aFmt(diasTrabVal * valorDia)}</small>
+    </div>
+    <div class="sueldo-cal-editor-item">
       <label>Feriados</label>
       <input type="number" id="sueldoModalFeriados" min="0" step="1" value="${feriados}">
+      <small id="sueldoModalFeriadosMonto">Monto: ${aFmt(feriados * valorDia)}</small>
+    </div>
+    <div class="sueldo-cal-editor-item">
+      <label>Descansos</label>
+      <input type="number" id="sueldoModalDescansos" min="0" step="1" value="${descansosVal}">
+      <small id="sueldoModalDescansosMonto">Monto: ${aFmt(descansosVal * valorDia)}</small>
+    </div>
+    <div class="sueldo-cal-editor-item">
+      <label>Faltas</label>
+      <input type="number" id="sueldoModalFaltas" min="0" step="1" value="${faltasVal}">
+      <small id="sueldoModalFaltasMonto">Descuento: -${aFmt(faltasVal * faltaUnit)}</small>
     </div>
     <div class="sueldo-cal-editor-item">
       <label>ONP</label>
@@ -1511,6 +1542,26 @@ function asistRenderEditorModal(empData) {
       <input type="number" id="sueldoModalAdic" min="0" step="1" value="${adicVal}">
     </div>
   `;
+
+  const refreshMontos = () => {
+    const diasTrabNow = parseInt(document.getElementById('sueldoModalDiasTrab')?.value || '0', 10) || 0;
+    const ferNow = parseInt(document.getElementById('sueldoModalFeriados')?.value || '0', 10) || 0;
+    const descNow = parseInt(document.getElementById('sueldoModalDescansos')?.value || '0', 10) || 0;
+    const faltNow = parseInt(document.getElementById('sueldoModalFaltas')?.value || '0', 10) || 0;
+    const diasTrabMontoEl = document.getElementById('sueldoModalDiasTrabMonto');
+    const ferMontoEl = document.getElementById('sueldoModalFeriadosMonto');
+    const descMontoEl = document.getElementById('sueldoModalDescansosMonto');
+    const faltMontoEl = document.getElementById('sueldoModalFaltasMonto');
+    if (diasTrabMontoEl) diasTrabMontoEl.textContent = `Monto: ${aFmt(diasTrabNow * valorDia)}`;
+    if (ferMontoEl) ferMontoEl.textContent = `Monto: ${aFmt(ferNow * valorDia)}`;
+    if (descMontoEl) descMontoEl.textContent = `Monto: ${aFmt(descNow * valorDia)}`;
+    if (faltMontoEl) faltMontoEl.textContent = `Descuento: -${aFmt(faltNow * faltaUnit)}`;
+  };
+
+  ['sueldoModalDiasTrab', 'sueldoModalFeriados', 'sueldoModalDescansos', 'sueldoModalFaltas'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', refreshMontos);
+  });
 }
 
 async function asistGuardarAjusteModal() {
@@ -1518,6 +1569,9 @@ async function asistGuardarAjusteModal() {
   const { empData, empId, desde, hasta } = _sueldoCalData;
 
   const feriados = parseInt(document.getElementById('sueldoModalFeriados')?.value || '0', 10) || 0;
+  const diasTrab = parseInt(document.getElementById('sueldoModalDiasTrab')?.value || '0', 10) || 0;
+  const faltas = parseInt(document.getElementById('sueldoModalFaltas')?.value || '0', 10) || 0;
+  const descansos = parseInt(document.getElementById('sueldoModalDescansos')?.value || '0', 10) || 0;
   const onpChecked = document.getElementById('sueldoModalOnp')?.checked || false;
   const bono = parseFloat(document.getElementById('sueldoModalBono')?.value || '0') || 0;
   const prestamo = parseFloat(document.getElementById('sueldoModalPrestamo')?.value || '0') || 0;
@@ -1532,15 +1586,16 @@ async function asistGuardarAjusteModal() {
     empleado_id: empId,
     periodo_desde: desde,
     periodo_hasta: hasta,
+    dias_trabajados_override: diasTrab,
     feriados,
+    faltas_override: faltas,
+    descansos_override: descansos,
     prestamo,
     bono,
     onp_override: onpChecked,
     dom_monto_override: domMonto,
     dias_adicionales_override: adic,
-    faltas_override: null,
     tardanzas_override: null,
-    descansos_override: null,
     nota: empData.nota || ''
   };
 
@@ -1860,7 +1915,7 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   <!-- Header -->
   <div class="hdr">
     <div class="hdr-l">
-      <img src="/img/log_belu.png" alt="Belu" onerror="this.style.display='none'">
+      <img src="/img/logo_belu.png" alt="Belu" onerror="this.style.display='none'">
       <div>
         <h1>Belu Chicharronería</h1>
         <p>Boleta de Liquidación de Sueldo</p>
