@@ -87,10 +87,15 @@ router.post('/login', (req, res) => {
     permisos: usuario.permisos
   };
 
-  return res.json({
-    ok: true,
-    user: req.session.user,
-    redirect: '/'
+  req.session.save((err) => {
+    if (err) {
+      return res.status(500).json({ ok: false, mensaje: 'No se pudo guardar la sesión.' });
+    }
+    return res.json({
+      ok: true,
+      user: req.session.user,
+      redirect: '/'
+    });
   });
 });
 

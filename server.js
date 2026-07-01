@@ -30,6 +30,7 @@ logPaths();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 if (!process.env.PORT) {
   console.warn('[BELU] PORT no asignado por el hosting; usando 3000. En Hostinger no fijar PORT=3000 en variables de entorno.');
 }
@@ -139,12 +140,17 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOADS_DIR));
 
+// Importante para hosting con reverse proxy (HTTPS al cliente, HTTP interno a Node).
+app.set('trust proxy', 1);
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'belu_secret',
   resave: false,
   saveUninitialized: false,
+  proxy: true,
   cookie: {
-    secure: false,
+    secure: IS_PRODUCTION,
+    sameSite: 'lax',
     httpOnly: true,
     maxAge: 8 * 60 * 60 * 1000
   }
