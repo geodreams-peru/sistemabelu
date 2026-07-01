@@ -1739,7 +1739,25 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   const data = await fetch(`${AAPI}/sueldos/boleta?emp_id=${empId}&desde=${desde}&hasta=${hasta}&_=${Date.now()}`).then(r => r.json());
   if (!data.ok) { alert('Error al cargar boleta'); return; }
 
-  const { emp, ajuste, registros, descansosFechas, valorDia, valorHora, descTardanza, periodo, resumen } = data;
+  // Para impresión: montos de quincena + calendario con contexto de mes completo.
+  // Esto evita que cambie la clasificación descanso/falta entre modal e impresión.
+  const baseFecha = new Date(`${desde}T12:00:00`);
+  const anioMes = baseFecha.getFullYear();
+  const mesNum = baseFecha.getMonth() + 1;
+  const ultimoDiaMes = new Date(anioMes, mesNum, 0).getDate();
+  const mesDesde = `${anioMes}-${String(mesNum).padStart(2, '0')}-01`;
+  const mesHasta = `${anioMes}-${String(mesNum).padStart(2, '0')}-${String(ultimoDiaMes).padStart(2, '0')}`;
+
+  let dataMes = data;
+  try {
+    const respMes = await fetch(`${AAPI}/sueldos/boleta?emp_id=${empId}&desde=${mesDesde}&hasta=${mesHasta}&_=${Date.now()}`);
+    const jsonMes = await respMes.json();
+    if (jsonMes?.ok) dataMes = jsonMes;
+  } catch {}
+
+  const { emp, ajuste, valorDia, valorHora, descTardanza, periodo, resumen } = data;
+  const registrosCalendario = Array.isArray(dataMes?.registros) ? dataMes.registros : [];
+  const descansosFechasCalendario = Array.isArray(dataMes?.descansosFechas) ? dataMes.descansosFechas : [];
 
   // ── Extraer datos ──
   const diasTrab   = +resumen?.diasTrabajados || 0;
@@ -1771,8 +1789,8 @@ async function asistImprimirBoleta(empId, desde, hasta) {
   const fmt = n => 'S/. ' + (+n || 0).toFixed(2);
 
   // ── Calendario grid (mismo estilo que el modal) ──
-  const fechasDescanso = new Set((descansosFechas || []).filter(f => typeof f === 'string'));
-  const registrosPorFecha = new Map(registros.map(r => [r.fecha, r]));
+  const fechasDescanso = new Set((descansosFechasCalendario || []).filter(f => typeof f === 'string'));
+  const registrosPorFecha = new Map((registrosCalendario || []).map(r => [r.fecha, r]));
   const qDesde = new Date(desde + 'T12:00:00');
   const qHasta = new Date(hasta + 'T12:00:00');
   const desdeDia = qDesde.getDate();
