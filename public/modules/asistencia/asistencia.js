@@ -76,7 +76,9 @@ const ASIST_MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Jul
 
   asistTab('marcar');
   asistCargarPanelMarcar();
-  asistCargarEmpleadosSelect();
+  if (user?.permisos?.asistencia_config) {
+    asistCargarEmpleadosSelect();
+  }
   asistInitCumpleanosSelects();
   const empFotoInput = document.getElementById('empFoto');
   if (empFotoInput && !empFotoInput.dataset.ready) {

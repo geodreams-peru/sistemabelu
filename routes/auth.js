@@ -109,7 +109,7 @@ router.post('/logout', (req, res) => {
 // ─── SESIÓN ACTIVA ───────────────────────────────────────────────
 router.get('/me', (req, res) => {
   if (!req.session.user) {
-    return res.status(401).json({ ok: false, mensaje: 'No autenticado.' });
+    return res.json({ ok: false, mensaje: 'No autenticado.' });
   }
   res.json({ ok: true, user: req.session.user });
 });
